@@ -14,7 +14,10 @@ The input folder must contain:
     - input_table.csv   (bin definitions)
     - materials.csv     (material properties)
     - mesh.py           (mesh configuration)
-    - <scenario>.py     (any .py file except mesh.py → used as scenario)
+    - <scenario>.py     (any .py file except mesh.py and temperature_models.py → used as scenario)
+
+Optional in input folder:
+    - temperature_models.py (custom per-material temperature callables)
 
 Results are saved to <input_folder>/results_<folder_name>/
 """
@@ -40,12 +43,15 @@ if hisp_src not in sys.path:
 
 
 def find_scenario_file(input_dir: str) -> str:
-    """Find the scenario .py file in input_dir (any .py except mesh.py)."""
+    """Find the scenario .py file in input_dir (any .py except mesh.py and temperature_models.py)."""
     py_files = glob.glob(os.path.join(input_dir, "*.py"))
-    candidates = [f for f in py_files if os.path.basename(f) != "mesh.py"]
+    candidates = [
+        f for f in py_files
+        if os.path.basename(f) not in {"mesh.py", "temperature_models.py"}
+    ]
     if not candidates:
         raise FileNotFoundError(
-            f"No scenario .py file found in '{input_dir}' (excluding mesh.py)"
+            f"No scenario .py file found in '{input_dir}' (excluding mesh.py and temperature_models.py)"
         )
     if len(candidates) > 1:
         names = [os.path.basename(f) for f in candidates]

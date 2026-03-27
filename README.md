@@ -24,60 +24,73 @@ conda activate PFC-TT
 We use a specific branch of HISP which will remain static until significant improvements are made. 
 To avoid FESTIM version conflicts, we install HISP **without dependencies**:
 ```bash
-conda install -c conda-forge 'festim=2.0b1'
+conda install -c conda-forge 'festim=2.0b2.post2'
 pip install --no-deps git+https://github.com/AdriaLlealS/hisp.git@main
 pip install h_transport_materials
 ```
 This will install:
-- **FESTIM v2.0-beta.1**
+- **FESTIM v2.0-beta.2**
 - **dolfinx v0.10.0**
 - **HISP**
 - All required dependencies
 
 ---
 
-## How to Run
+## How to Run (Input Folder Methodology)
 
-Brief summary:
+All simulations are now launched from a dedicated input folder containing the following files:
 
-- Prepare the **input table** (`input_table.csv`) describing all bins you want to simulate. Required columns (exact headers):
-	- `Bin number`, `Z_start (m)`, `R_start (m)`, `Z_end (m)`, `R_end (m)`,
-	- `Material`, `Thickness (m)`, `Cu thickness (m)`, `mode`,
-	- `S. Area parent bin (m^2)`, `Surface area (m^2)`, `f (ion flux scaling factor)`, `location`.
-	Optional simulation columns accepted (case-sensitive): `BC Plasma Facing Surface`, `BC rear surface`, `rtol`, `atol`, `FP max. stepsize (s)`, `Max. stepsize no FP (s)`.
+- **input_table.csv** (required):
+  - Describes all bins to simulate. Required columns (case-sensitive):
+    - `Bin number`, `Z_start (m)`, `R_start (m)`, `Z_end (m)`, `R_end (m)`,
+    - `Material`, `Thickness (m)`, `Cu thickness (m)`, `mode`,
+    - `S. Area parent bin (m^2)`, `Surface area (m^2)`, `f (ion flux scaling factor)`, `location`.
+    - Optional: `BC Plasma Facing Surface`, `BC rear surface`, `rtol`, `atol`, `FP max. stepsize (s)`, `Max. stepsize no FP (s)`, etc.
+- **materials.py** (required):
+  - Python file defining all materials referenced in the input table. Each material should be a Python object or dictionary.
+- **scenario.py** (required):
+  - Python file defining the scenario (pulse sequence, campaign structure, etc). **All data file paths for fluxes, heat loads, particle energies, etc. are specified here.** This is the only place you need to set these paths.
+- **mesh.py** (optional but recommended):
+  - Python file describing the mesh for each bin or group. If omitted, a default mesh is generated from the input table.
+- **temperature_models.py** (optional):
+  - Python file with custom temperature models (functions) for one or more materials/bins. If omitted, default temperature handling is used.
 
-- Provide the **binned flux data** required by the pulses/scenarios you will run. Place these in the `data/` folder (or adjust paths in the runner). Typical file names used by the code:
-	- `Binned_Flux_Data.dat` (FP)
-	- `Binned_Flux_Data_just_D_pulse.dat` (FP_D)
-	- `ICWC_data.dat` (ICWC)
-	- `GDC_data.dat` (GDC)
-	Also supply any ROSP/RISP wall data referenced by your scenarios.
+### Workflow Summary
 
-- Create or select **scenario files** in `scenarios/` (e.g. `10FPdays.py`, `10FPdays_baking.py`). Each scenario module should expose a `scenario` object built from `Scenario`/`Pulse` definitions.
+1. **Prepare your input folder** with the files above. Only `input_table.csv`, `materials.py`, and `scenario.py` are strictly required.
+2. **Edit `scenario.py`** to reference the correct data files for fluxes, heat loads, particle energies, etc. (e.g. `Binned_Flux_Data.dat`, `ICWC_data.dat`, etc.).
+3. **(Optional) Add `mesh.py` and/or `temperature_models.py`** for custom mesh or temperature logic.
+4. **Run the simulation** using one of the runners below, pointing to your input folder.
 
-Before running, activate the `PFC-TT` conda environment (and make sure the correct version of HISP has been installed).
+### Runners: Cluster and Local
 
-Run capabilities
-
-- This repository includes example submitters for running many bins. In particular there is a SLURM submitter `run_on_cluster/slurm_new_csv_jobs.sh` which demonstrates how to submit single-bin or multi-bin jobs to a cluster. Example usages:
+#### Cluster (SLURM, ITER SCDCC)
+- Use `run_on_cluster/slurm_folder_jobs.sh` to submit jobs to the cluster. This script is tailored for ITER's Science Division Computer Cluster (SCDCC) and includes site-specific module loads and paths.
+- Example usages:
 
 ```bash
-# submit a single bin (example: bin id 3) with scenario '10FPdays'
-./run_on_cluster/slurm_new_csv_jobs.sh 10FPdays "3"
+# Run all bins for a scenario (using input_files/ as default input folder)
+sbatch run_on_cluster/slurm_folder_jobs.sh input_files
 
-# submit all bins for a scenario (default behavior)
-./run_on_cluster/slurm_new_csv_jobs.sh 10FPdays
-
-# submit a list/range of bin ids
-./run_on_cluster/slurm_new_csv_jobs.sh 10FPdays "1 2 5 10"
+# Run specific bins for a scenario
+sbatch run_on_cluster/slurm_folder_jobs.sh input_files "0-4, 10-12"
 ```
 
-- Important: the provided `slurm_new_csv_jobs.sh` scripts are tailored to ITER's SCDCC (Scientific Division Computer Cluster) and include site-specific module loads, partitions and paths. If you are running on a different system, create a cluster submit script appropriate for your scheduler/environment (copy the example and adapt environment activation, modules, partitions and any filesystem paths).
+#### Local (Single Bin, Any System)
+- Use `run_on_cluster/run_bin_from_folder.py` to run a single bin locally from an input folder. This is useful for testing or debugging without SLURM.
+- Example usage:
 
-- `run_new_csv_bin.py` is the per-bin runner used by the submitters: it loads the CSV reactor, builds a `Model` for each bin and writes results to `results_<scenario>/`.
+```bash
+python run_on_cluster/run_bin_from_folder.py my_input_folder 1
+```
+- This will run the simulation for bin ID 1 (first row in `input_table.csv`) using the files in `my_input_folder/`.
 
-- Column header names are matched exactly and are case-sensitive. If your table uses different headers, either rename columns or adapt `csv_bin_loader.py`.
+### Notes
+- All data files (fluxes, heat loads, energies, etc.) are specified in `scenario.py`. You do not need to modify the runner or hardcode file paths elsewhere.
+- The SLURM script is tailored for ITER's cluster; adapt it for other systems as needed.
+- Column header names in `input_table.csv` are case-sensitive and must match exactly.
+- Results are saved to a results folder inside your input folder (e.g. `my_input_folder/results_scenario/`).
 
-- Ensure your binned flux data matches the pulse types used by your scenarios and that file paths are correct.
+---
 
 

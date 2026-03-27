@@ -5,6 +5,7 @@ import pandas as pd
 import numpy as np
 import argparse
 import importlib.util
+from types import ModuleType
 
 # Ensure HISP can locate PFC-Tritium-Transport's csv_bin.py without user setup
 if "PFC_TT_PATH" not in os.environ and "HISP_PFC_TT_PATH" not in os.environ:
@@ -75,6 +76,81 @@ if input_dir and input_dir != "input_files":
 
 print(f"Loading scenario: {scenario_name} from {scenario_folder}")
 scenario = load_scenario_variable(scenario_folder, scenario_name)
+scenario_plasma_data_handling = load_scenario_variable(scenario_folder, scenario_name, variable_name="plasma_data_handling")
+
+
+def _normalize_material_name(name):
+    if not isinstance(name, str):
+        return None
+    return name.strip().upper()
+
+
+def _extract_temperature_models_from_module(module: ModuleType):
+    """
+    Extract temperature model mapping from an imported module.
+
+    Supported contracts in temperature_models.py:
+      1) TEMPERATURE_MODELS: dict[str, callable]
+      2) get_temperature_models() -> dict[str, callable]
+    """
+    mapping = None
+
+    if hasattr(module, "TEMPERATURE_MODELS"):
+        mapping = getattr(module, "TEMPERATURE_MODELS")
+    elif hasattr(module, "get_temperature_models"):
+        getter = getattr(module, "get_temperature_models")
+        if callable(getter):
+            mapping = getter()
+
+    if mapping is None:
+        return {}
+
+    if not isinstance(mapping, dict):
+        raise TypeError("temperature_models mapping must be a dict[str, callable]")
+
+    parsed = {}
+    for material, model_fn in mapping.items():
+        material_key = _normalize_material_name(material)
+        if material_key is None:
+            print(f"Warning: ignoring non-string material key in temperature models: {material!r}")
+            continue
+        if not callable(model_fn):
+            print(f"Warning: ignoring non-callable temperature model for material {material_key!r}")
+            continue
+        parsed[material_key] = model_fn
+
+    return parsed
+
+
+def load_temperature_model_overrides(input_folder: str):
+    """
+    Load optional per-material temperature models from <input_folder>/temperature_models.py.
+
+    Returns:
+        dict[str, callable]: mapping material -> temperature model callable
+    """
+    model_file = os.path.join(input_folder, "temperature_models.py")
+    if not os.path.exists(model_file):
+        print("No custom temperature models file found; using default HISP temperature models")
+        return {}
+
+    try:
+        spec = importlib.util.spec_from_file_location("temperature_models", model_file)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        mapping = _extract_temperature_models_from_module(module)
+        if mapping:
+            print(f"Loaded custom temperature models for materials: {sorted(mapping.keys())}")
+        else:
+            print("temperature_models.py found, but no valid models were declared; using defaults")
+        return mapping
+    except Exception as e:
+        print(f"Warning: Failed to load custom temperature models from {model_file}: {e}")
+        print("Falling back to default HISP temperature models")
+        return {}
+
+
+temperature_model_overrides = load_temperature_model_overrides(input_dir)
 
 print(f"Loading CSV bins from: {csv_file_path}")
 # Load CSV reactor with optional materials path from input_dir
@@ -93,8 +169,9 @@ print(csv_reactor.get_reactor_summary())
 
 # Make a plasma data handling object. Prefer scenario-provided instance if present.
 data_folder = "data"
-if hasattr(scenario, "plasma_data_handling"):
-    plasma_data_handling = scenario.plasma_data_handling
+if scenario_plasma_data_handling is not None:
+    plasma_data_handling = scenario_plasma_data_handling
+    print("Using plasma_data_handling from scenario file")
 else:
     plasma_data_handling = PlasmaDataHandling(
         pulse_type_to_data={
@@ -228,6 +305,7 @@ def run_new_csv_bin_scenario(scenario, bin_id: int):
         plasma_data_handling=plasma_data_handling,
         coolant_temp=coolant_temp,
         bins_meshes=BINS_MESHES,
+        temperature_model_overrides=temperature_model_overrides,
     )
 
     # Find the specific bin by bin_id (1-based row index in CSV)
@@ -271,6 +349,13 @@ def run_new_csv_bin_scenario(scenario, bin_id: int):
         print(f"  Tolerances: rtol={bin_config.rtol:.0e}, atol={bin_config.atol:.0e}")
         print(f"  Max stepsize FP: {bin_config.fp_max_stepsize:.1f} s")
         print(f"  Max stepsize no FP: {bin_config.max_stepsize_no_fp:.1f} s")
+
+        material_key = _normalize_material_name(target_bin.material.name)
+        if material_key in temperature_model_overrides:
+            print(f"  Temperature model: custom user model from temperature_models.py (material={material_key})")
+        else:
+            print(f"  Temperature model: default HISP/FESTIM path (no custom model for material={material_key})")
+
         print(f"{'='*60}\n")
         
         # Debug: Print flux values during flat-top
@@ -304,9 +389,18 @@ def run_new_csv_bin_scenario(scenario, bin_id: int):
             print(f"  ion_scaling_factor: {target_bin.ion_scaling_factor:.6f}")
         print("===========================================\n")
         
+        # Compute results directory early so VTX checkpoints land in the right place
+        material_name = target_bin.material.name.lower()
+        mode_name = target_bin.mode.lower().replace("_", "")
+        input_folder_name = os.path.basename(os.path.normpath(input_dir)) if input_dir else "results"
+        results_dir = os.path.join(input_dir, f"results_{input_folder_name}")
+        checkpoints_dir = os.path.join(input_dir, "checkpoints")
+        os.makedirs(results_dir, exist_ok=True)
+        os.makedirs(checkpoints_dir, exist_ok=True)
+        
         # Run the bin using NewModel.run_bin() method
         print("Running bin using NewModel.run_bin()...")
-        model, quantities = my_new_model.run_bin(target_bin, exports=False)
+        model, quantities = my_new_model.run_bin(target_bin, exports=True, folder=checkpoints_dir)
         
         # Get temperature function for recording
         from hisp.festim_models.new_mb_model import make_temperature_function
@@ -315,6 +409,7 @@ def run_new_csv_bin_scenario(scenario, bin_id: int):
             plasma_data_handling=plasma_data_handling,
             bin=target_bin,
             coolant_temp=coolant_temp,
+            temperature_model_overrides=temperature_model_overrides,
         )
         
         # Separate profile data from scalar quantities
@@ -384,12 +479,7 @@ def run_new_csv_bin_scenario(scenario, bin_id: int):
         csv_bin_data["temperature_at_rear"] = temperature_rear_values
 
         # Save results to JSON files
-        material_name = target_bin.material.name.lower()
-        mode_name = target_bin.mode.lower().replace("_", "")
-        
-        # Use input folder name for results directory, save inside the input folder
-        input_folder_name = os.path.basename(os.path.normpath(input_dir)) if input_dir else "results"
-        results_dir = os.path.join(input_dir, f"results_{input_folder_name}")
+        # (material_name, mode_name, input_folder_name, results_dir computed earlier)
         profiles_dir = os.path.join(input_dir, f"profiles_{input_folder_name}")
         
         base_filename = f"{results_dir}/id_{target_bin.bin_id}_bin_num_{target_bin.bin_number}_{material_name}_{mode_name}"
@@ -397,8 +487,6 @@ def run_new_csv_bin_scenario(scenario, bin_id: int):
         
         profiles_base = f"{profiles_dir}/id_{target_bin.bin_id}_bin_num_{target_bin.bin_number}_{material_name}_{mode_name}"
         profiles_file = f"{profiles_base}_profiles.json"
-        
-        os.makedirs(results_dir, exist_ok=True)
         
         # Save scalar quantities
         with open(output_file, "w") as f:

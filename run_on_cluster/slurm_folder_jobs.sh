@@ -15,7 +15,8 @@
 #   - input_table.csv (bin definitions)
 #   - materials.csv (material properties)
 #   - mesh.py (mesh definition)
-#   - scenario_*.py (scenario file - any name ending in .py except mesh.py)
+#   - scenario_*.py (scenario file - any name ending in .py except mesh.py and temperature_models.py)
+#   - temperature_models.py (optional per-material temperature model overrides)
 
 # Load modules and activate environment
 module load IMAS
@@ -75,10 +76,10 @@ if [ ! -f "$INPUT_DIR/mesh.py" ]; then
     exit 1
 fi
 
-# Find the scenario file (any .py file except mesh.py)
-SCENARIO_FILE=$(find "$INPUT_DIR" -maxdepth 1 -type f -name "*.py" ! -name "mesh.py" | head -1)
+# Find the scenario file (any .py file except mesh.py and optional temperature_models.py)
+SCENARIO_FILE=$(find "$INPUT_DIR" -maxdepth 1 -type f -name "*.py" ! -name "mesh.py" ! -name "temperature_models.py" | head -1)
 if [ -z "$SCENARIO_FILE" ] || [ ! -f "$SCENARIO_FILE" ]; then
-    echo "Error: No scenario .py file found in '$INPUT_DIR' (excluding mesh.py)!"
+    echo "Error: No scenario .py file found in '$INPUT_DIR' (excluding mesh.py and temperature_models.py)!"
     exit 1
 fi
 
