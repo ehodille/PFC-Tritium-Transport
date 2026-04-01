@@ -2,14 +2,44 @@
 """
 Check progress of SLURM jobs from .err files.
 
-Reads all .err files in logs folder and prints their current progress %.
+Usage:
+    python check_progress.py <input_folder>
+
+Reads all .err files in <input_folder>/logs/ and prints their current progress %.
+The input_folder can live inside PFC-Tritium-Transport or one level above it.
 """
 
 import os
 import re
+import sys
+import argparse
 from pathlib import Path
 from collections import defaultdict
-from check_logs import detect_crash_in_err_file
+
+# Allow importing from run_on_cluster/
+_repo_root = os.path.abspath(os.path.dirname(__file__))
+sys.path.insert(0, os.path.join(_repo_root, "run_on_cluster"))
+from resolve_input_dir import resolve_input_dir
+
+
+def detect_crash_in_err_file(err_file_path):
+    """Check last 10 lines of .err file for crash indicators."""
+    try:
+        with open(err_file_path, 'r', errors='ignore') as f:
+            lines = f.readlines()
+
+        last_lines = ''.join(lines[-10:])
+
+        if "AssertionError: Non-linear solver did not converge" in last_lines:
+            return True, "Non-linear solver failed"
+        if "Traceback" in last_lines or "Exception" in last_lines or "Error:" in last_lines:
+            return True, "Python exception"
+        if "Segmentation" in last_lines or "killed" in last_lines.lower():
+            return True, "Segmentation/Killed"
+
+        return False, None
+    except Exception:
+        return False, None
 
 
 def extract_progress_and_time(content):
@@ -118,9 +148,8 @@ def estimate_remaining_time(elapsed_time, sim_time, end_time):
     return max(0, remaining)
 
 
-def get_failed_jobs():
+def get_failed_jobs(logs_dir: Path):
     """Return set of failed job names by checking .err files for crash indicators."""
-    logs_dir = Path("logs")
     failed = set()
     for err_file in logs_dir.glob("*.err"):
         is_crashed, _ = detect_crash_in_err_file(err_file)
@@ -129,9 +158,8 @@ def get_failed_jobs():
     return failed
 
 
-def analyze_err_files():
+def analyze_err_files(logs_dir: Path):
     """Analyze all .err files in logs folder and report progress."""
-    logs_dir = Path("logs")
     
     if not logs_dir.exists():
         print("❌ logs folder not found")
@@ -145,7 +173,7 @@ def analyze_err_files():
         return
     
     progress_data = []
-    failed_jobs = get_failed_jobs()
+    failed_jobs = get_failed_jobs(logs_dir)
     
     # Analyze each .err file
     for err_file in err_files:
@@ -244,4 +272,17 @@ def analyze_err_files():
 
 
 if __name__ == "__main__":
-    analyze_err_files()
+    parser = argparse.ArgumentParser(
+        description="Check SLURM job progress from an input folder's logs directory.",
+        usage="%(prog)s input_folder",
+    )
+    parser.add_argument("input_folder", help="Input folder name (inside PFC-TT or one level above)")
+    args = parser.parse_args()
+
+    input_dir = resolve_input_dir(args.input_folder, repo_root=_repo_root)
+    logs_dir = Path(input_dir) / "logs"
+
+    print(f"Input folder : {input_dir}")
+    print(f"Logs directory: {logs_dir}")
+
+    analyze_err_files(logs_dir)
