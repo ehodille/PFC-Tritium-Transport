@@ -233,8 +233,9 @@ else
     echo "  Total sims: ${#SIM_IDS_ARRAY[@]}"
 fi
 
-# Create logs directory
-mkdir -p logs
+# Create logs directory inside the input folder
+LOGS_DIR="$INPUT_DIR/logs"
+mkdir -p "$LOGS_DIR"
 
 echo ""
 echo "Submitting jobs to SLURM cluster..."
@@ -245,8 +246,8 @@ for sim_id in "${SIM_IDS_ARRAY[@]}"; do
     sbatch <<EOF
 #!/bin/bash
 #SBATCH --job-name=sim_${sim_id}
-#SBATCH --output=logs/sim_${sim_id}_%j.out
-#SBATCH --error=logs/sim_${sim_id}_%j.err
+#SBATCH --output=${LOGS_DIR}/sim_${sim_id}_%j.out
+#SBATCH --error=${LOGS_DIR}/sim_${sim_id}_%j.err
 #SBATCH --time=300:00:00
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1

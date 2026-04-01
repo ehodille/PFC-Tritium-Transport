@@ -352,6 +352,7 @@ def run_new_csv_bin_scenario(scenario, sim_id: int):
         print(f"  Surface area: {target_bin.surface_area:.4f} m²")
         print(f"  Cu thickness: {target_bin.cu_thickness*1e3:.2f} mm")
         print(f"  Ion scaling factor: {target_bin.ion_scaling_factor:.3f}")
+        print(f"  Atom view factor: {getattr(target_bin, 'atom_view_factor', 1.0):.4f}")
         print(f"  BC plasma facing: {bin_config.bc_plasma_facing_surface}")
         print(f"  BC rear surface: {bin_config.bc_rear_surface}")
         print(f"  Tolerances: rtol={bin_config.rtol:.0e}, atol={bin_config.atol:.0e}")
@@ -395,6 +396,7 @@ def run_new_csv_bin_scenario(scenario, sim_id: int):
             print(f"  D atom flux: {d_atom_flux(flat_top_time):.6e} part/m^2/s")
             print(f"  T atom flux: {t_atom_flux(flat_top_time):.6e} part/m^2/s")
             print(f"  ion_scaling_factor: {target_bin.ion_scaling_factor:.6f}")
+            print(f"  atom_view_factor: {getattr(target_bin, 'atom_view_factor', 1.0):.6f}")
         print("===========================================\n")
         
         # Compute results directory early so VTX checkpoints land in the right place
