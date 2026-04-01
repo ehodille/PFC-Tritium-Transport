@@ -253,6 +253,7 @@ def compute_and_attach_implantation_params(bin, scenario, plasma_data_handling, 
     
     # Print debug info
     if should_calculate:
+        print(f"  Material: {material_name} → {'SS' if material_name.strip().upper() == 'SS' else 'W'} implantation model")
         if energy_ion is not None and angle_ion is not None:
             print(f"  Calculated implantation params for ions: E={energy_ion:.2f} eV, α={angle_ion:.2f}°")
             print(f"    Range: {params_ion['implantation_range']*1e9:.3f} nm, Width: {params_ion['width']*1e9:.3f} nm, Reflection: {params_ion['reflection_coefficient']:.3f}")

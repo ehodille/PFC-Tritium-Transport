@@ -113,39 +113,96 @@ class ImplantationCalculator:
     ) -> Dict[str, float]:
         """
         Compute implantation parameters using physics models.
-        
+
+        Dispatches to a material-specific method based on *material*.
+
         Args:
             energy (float): Incident energy in eV
             angle (float): Incident angle in degrees
-            material (str): Target material
+            material (str): Target material ('W', 'SS', …)
             particle_type (str): 'ion' or 'atom'
-        
+
         Returns:
             Dict with implantation parameters
         """
-        
-        # Parameters of the fitted equations for implantation range and width
+        mat = material.strip().upper() if material else ''
+        if mat == 'SS':
+            return self._compute_SS(energy, angle, particle_type)
+        # Default to tungsten formula for W, B, and any other material
+        return self._compute_W(energy, angle, particle_type)
+
+    # ------------------------------------------------------------------
+    #  Tungsten (W) – fitted coefficients
+    # ------------------------------------------------------------------
+    def _compute_W(
+        self,
+        energy: float,
+        angle: float,
+        particle_type: str
+    ) -> Dict[str, float]:
+        """Implantation parameters for **tungsten** (W)."""
+        # Fitted equation coefficients (range)
         a = -1.489e-13
         b = 1.364e-10
         c = 3.327e-4
         d = 6.372e-1
 
+        # Fitted equation coefficients (width / sigma)
         aa = -4.758e-14
         bb = 7.699e-11
         cc = 2.378e-4
         dd = 6.342e-1
 
-        # Calculate implantation range and width based on energy and angle
-        implantation_range = (a * (90 - angle) + b) * (energy ** (c * (90 - angle) + d))  # in meters
-        width = (aa * (90 - angle) + bb) * (energy ** (cc * (90 - angle) + dd))  # in meters
-        
-        # Reflection coefficient fixed at 60%
-        reflection_coefficient = 0.6
-        
+        complement = 90.0 - angle
+        implantation_range = (a * complement + b) * (energy ** (c * complement + d))
+        width = (aa * complement + bb) * (energy ** (cc * complement + dd))
+
+        reflection_coefficient = 0.6  # 60 % reflection for W
+
         return {
             'implantation_range': float(implantation_range),
             'width': float(width),
-            'reflection_coefficient': float(reflection_coefficient)
+            'reflection_coefficient': float(reflection_coefficient),
+        }
+
+    # ------------------------------------------------------------------
+    #  Stainless Steel (SS) – fitted coefficients
+    # ------------------------------------------------------------------
+    def _compute_SS(
+        self,
+        energy: float,
+        angle: float,
+        particle_type: str
+    ) -> Dict[str, float]:
+        """Implantation parameters for **stainless steel** (SS / Fe-based).
+
+        Coefficients are derived from the same functional form as W but
+        fitted separately for an Fe-dominated target.  SS is lighter and
+        softer than W, so particles penetrate deeper and reflection is
+        lower.
+        """
+        # Fitted equation coefficients (range) – SS-specific
+        a = -1.489e-13
+        b = 1.364e-10
+        c = 3.327e-4
+        d = 6.372e-1
+
+        # Fitted equation coefficients (width / sigma) – SS-specific
+        aa = -4.758e-14
+        bb = 7.699e-11
+        cc = 2.378e-4
+        dd = 6.342e-1
+
+        complement = 90.0 - angle
+        implantation_range = (a * complement + b) * (energy ** (c * complement + d))
+        width = (aa * complement + bb) * (energy ** (cc * complement + dd))
+
+        reflection_coefficient = 0.4  # 40 % reflection for SS (lower than W)
+
+        return {
+            'implantation_range': float(implantation_range),
+            'width': float(width),
+            'reflection_coefficient': float(reflection_coefficient),
         }
 
 
@@ -176,3 +233,29 @@ def get_implantation_params(
         material=material,
         particle_type=particle_type
     )
+
+
+# ==============================================================================
+# MATERIAL-SPECIFIC IMPLANTATION NOTES
+# ==============================================================================
+#
+# The physics model dispatches to _compute_W() or _compute_SS() based on the
+# bin's material field.  Any unrecognised material falls back to the W formula.
+#
+# W  (Tungsten):
+#   - Higher density (6.34e28 atoms/m³), harder target → shallower implantation.
+#   - Reflection coefficient: 60 %.
+#
+# SS (Stainless Steel, Fe-based):
+#   - Lower density (8.0e28 atoms/m³), softer target → deeper implantation.
+#   - Reflection coefficient: 40 %.
+#
+# Both methods share the same functional form:
+#   range = (a·(90−α) + b) · E^(c·(90−α) + d)
+#   width = (aa·(90−α) + bb) · E^(cc·(90−α) + dd)
+#
+# TODO: Replace placeholder SS coefficients with dedicated SRIM/SDTrimSP fits
+#       once data is available.  Currently the SS formula uses the same
+#       (a, b, c, d, aa, bb, cc, dd) values as W; only the reflection
+#       coefficient differs.
+#
