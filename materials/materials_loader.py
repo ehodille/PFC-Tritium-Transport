@@ -5,7 +5,7 @@ the materials CSV (e.g., `D0` vs `D_0`, `Mat_density` vs `mat_density`,
 repeated trap columns like `Trap_density_1`, `k_0_1`, ...).
 """
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Union
 
 import pandas as pd
 
@@ -16,7 +16,7 @@ def _is_nan(x):
     return x is None or (isinstance(x, float) and (x != x))
 
 
-def load_materials(csv_path: str | Path = "input_files/materials.csv") -> Dict[str, Material]:
+def load_materials(csv_path: Union[str, Path] = "input_files/materials.csv") -> Dict[str, Material]:
     csv_path = Path(csv_path)
     if not csv_path.exists():
         raise FileNotFoundError(f"Materials CSV not found: {csv_path}")

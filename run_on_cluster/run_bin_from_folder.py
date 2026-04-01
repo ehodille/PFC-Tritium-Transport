@@ -3,12 +3,12 @@
 Run a single bin simulation locally from an input folder.
 
 Usage:
-    python run_on_cluster/run_bin_from_folder.py <input_folder> <bin_id>
+    python run_on_cluster/run_bin_from_folder.py <input_folder> <sim_id>
 
 Examples:
-    python run_on_cluster/run_bin_from_folder.py DT1_5 1       # Run bin_id 1 (first row) from the input_folder DT1_5
-    python run_on_cluster/run_bin_from_folder.py DT1_5 33      # Run bin_id 33 from DT1_5
-    python run_on_cluster/run_bin_from_folder.py DT1_2000 10   # Run bin_id 10 from DT1_2000
+    python run_on_cluster/run_bin_from_folder.py DT1_5 1       # Run sim_id 1 from DT1_5
+    python run_on_cluster/run_bin_from_folder.py DT1_5 33      # Run sim_id 33 from DT1_5
+    python run_on_cluster/run_bin_from_folder.py DT1_2000 10   # Run sim_id 10 from DT1_2000
 
 The input folder must contain:
     - input_table.csv   (bin definitions)
@@ -62,14 +62,16 @@ def find_scenario_file(input_dir: str) -> str:
 def main():
     parser = argparse.ArgumentParser(
         description="Run a single bin simulation locally from an input folder",
-        usage="%(prog)s input_folder bin_id",
+        usage="%(prog)s input_folder sim_id",
     )
     parser.add_argument("input_folder", help="Path to the input folder (e.g. DT1_5)")
-    parser.add_argument("bin_id", type=int, help="Bin ID (1-based row number in input_table.csv)")
+    parser.add_argument("sim_id", type=int,
+                        help="Simulation ID (from 'Sim. ID' column in input_table.csv, "
+                             "or 1-based row number if column is absent)")
     args = parser.parse_args()
 
     input_dir = args.input_folder
-    bin_id = args.bin_id
+    sim_id = args.sim_id
 
     # ---- Validate required files ----
     required = ["input_table.csv", "materials.csv", "mesh.py"]
@@ -89,14 +91,14 @@ def main():
     print(f"  Input folder : {input_dir}")
     print(f"  CSV file     : {csv_file}")
     print(f"  Scenario     : {scenario_name}")
-    print(f"  Bin ID (row) : {bin_id}")
+    print(f"  Sim ID       : {sim_id}")
     print("=" * 60)
 
     # ---- Build the same argv that slurm_folder_jobs.sh would pass ----
-    # run_new_csv_bin.py expects: bin_id  scenario_folder  scenario_name  csv_file  --input-dir INPUT_DIR
+    # run_new_csv_bin.py expects: sim_id  scenario_folder  scenario_name  csv_file  --input-dir INPUT_DIR
     sys.argv = [
         "run_on_cluster/run_new_csv_bin.py",
-        str(bin_id),
+        str(sim_id),
         input_dir,          # scenario_folder
         scenario_name,       # scenario_name
         csv_file,            # csv_file

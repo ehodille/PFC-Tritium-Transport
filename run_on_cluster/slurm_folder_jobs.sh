@@ -6,7 +6,7 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=1gb
-#SBATCH --partition=sirius
+#SBATCH --partition=all
 
 # New CSV Bin SLURM Job Submitter
 # Usage: ./slurm_new_csv_bin input_files
@@ -125,20 +125,52 @@ expand_bin_spec() {
     printf '%s\n' "${bins[@]}" | sort -n | uniq
 }
 
-# Determine which bin IDs to run
+# Determine which sim IDs to run
+# If a "Sim. ID" (or "sim_id" etc.) column exists in the CSV, use those
+# values as the sim IDs.  Otherwise fall back to 1-based row numbers.
+#
+# When a BIN_SPEC is provided on the command line, those numbers refer to
+# sim IDs (not row numbers).
+
+# Helper: extract sim IDs from CSV header + data
+get_sim_ids_from_csv() {
+    local csv="$1"
+    # Read the header line and normalise (lowercase, strip spaces/underscores/dots)
+    local header
+    header=$(head -1 "$csv")
+    # Find the 1-based column index of a "sim id" column
+    local col_idx
+    col_idx=$(echo "$header" | awk -F',' '{
+        for (i=1; i<=NF; i++) {
+            col = tolower($i);
+            gsub(/[ _.\-()]/, "", col);
+            if (col == "simid" || col == "simulationid") { print i; exit }
+        }
+    }')
+    if [ -n "$col_idx" ]; then
+        # Extract the sim_id column values (skip header)
+        tail -n +2 "$csv" | awk -F',' -v c="$col_idx" '{
+            val = $c; gsub(/[ \t]/, "", val);
+            if (val != "") print val
+        }'
+    else
+        # No sim_id column → generate 1..NUM_ROWS
+        local num_rows
+        num_rows=$(awk 'END{print NR-1}' "$csv")
+        seq 1 "$num_rows"
+    fi
+}
+
 if [ -z "$BIN_SPEC" ]; then
-    # Count data rows (skip header) using AWK for robustness
-    # AWK's NR counts all records regardless of trailing newlines
-    NUM_ROWS=$(awk 'END{print NR-1}' "$CSV_FILE")
-    # Generate 1-based bin IDs (1 to NUM_ROWS) matching CSV row numbers
-    BIN_IDS_ARRAY=($(seq 1 $NUM_ROWS))
-    echo "  Bin specification: ALL"
-    echo "  Total bins: $NUM_ROWS"
+    # Run ALL sim IDs from the CSV
+    mapfile -t SIM_IDS_ARRAY < <(get_sim_ids_from_csv "$CSV_FILE")
+    echo "  Sim ID source: CSV column (or 1-based rows)"
+    echo "  Total sims: ${#SIM_IDS_ARRAY[@]}"
 else
     BIN_IDS_OUTPUT=$(expand_bin_spec "$BIN_SPEC")
-    BIN_IDS_ARRAY=($BIN_IDS_OUTPUT)
-    echo "  Bin specification: $BIN_SPEC"
-    echo "  Total bins: ${#BIN_IDS_ARRAY[@]}"
+    SIM_IDS_ARRAY=($BIN_IDS_OUTPUT)
+    echo "  Sim ID specification: $BIN_SPEC"
+    echo "  Total sims: ${#SIM_IDS_ARRAY[@]}"
 fi
 
 # Create logs directory
@@ -148,18 +180,18 @@ echo ""
 echo "Submitting jobs to SLURM cluster..."
 echo "=========================================="
 
-# Loop over specified bin IDs
-for bin_id in "${BIN_IDS_ARRAY[@]}"; do
+# Loop over specified sim IDs
+for sim_id in "${SIM_IDS_ARRAY[@]}"; do
     sbatch <<EOF
 #!/bin/bash
-#SBATCH --job-name=csv_${bin_id}
-#SBATCH --output=logs/new_csv_bin_${bin_id}_%j.out
-#SBATCH --error=logs/new_csv_bin_${bin_id}_%j.err
+#SBATCH --job-name=sim_${sim_id}
+#SBATCH --output=logs/sim_${sim_id}_%j.out
+#SBATCH --error=logs/sim_${sim_id}_%j.err
 #SBATCH --time=300:00:00
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=1gb
-#SBATCH --partition=sirius
+#SBATCH --partition=all
 
 module load IMAS
 source /home/ITER/llealsa/miniconda3/etc/profile.d/conda.sh
@@ -176,10 +208,10 @@ module unload numpy               2>/dev/null
 module unload mpi4py              2>/dev/null
 module unload scifem              2>/dev/null
 
-PYTHONNOUSERSITE=1 python -s run_on_cluster/run_new_csv_bin.py $bin_id $SCENARIO_FOLDER $SCENARIO_NAME $CSV_FILE --input-dir $INPUT_DIR
+PYTHONNOUSERSITE=1 python -s run_on_cluster/run_new_csv_bin.py $sim_id $SCENARIO_FOLDER $SCENARIO_NAME $CSV_FILE --input-dir $INPUT_DIR
 
 EOF
-    echo "Submitted job for bin ID: $bin_id"
+    echo "Submitted job for Sim ID: $sim_id"
 done
 
 echo ""
@@ -187,7 +219,7 @@ echo "=========================================="
 echo "All jobs submitted!"
 echo "  Input folder: $INPUT_DIR"
 echo "  Scenario: $SCENARIO_NAME"
-echo "  Jobs submitted: ${#BIN_IDS_ARRAY[@]}"
+echo "  Jobs submitted: ${#SIM_IDS_ARRAY[@]}"
 echo ""
 echo "Monitor: squeue -u \$USER"
 echo "Cancel: scancel -u \$USER"

@@ -1,0 +1,3 @@
+Sim. ID,Flux ID,Material,Thickness (m),Cu thickness (m),mode,S. Area parent bin (m^2),Surface area (m^2),Ion flux wetted fraction,Atom view factor,location,rtol,atol,FP max. stepsize (s),Max. stepsize no FP (s),BC Plasma Facing Surface,BC rear surface,Calculate Implantation Parameters
+1,1,W,0.006,0.002,high_wetted,26,0.886,0.919,1.0,FW,1E-8,1E-8,5,1000,Robin - Surf. Rec. + Implantation,Neumann - no flux,Yes
+2,1,W,0.006,0.002,low_wetted,26,0.0999,0.0808,1.0,FW,1E-8,1E-8,5,1000,Robin - Surf. Rec. + Implantation,Neumann - no flux,Yes

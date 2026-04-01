@@ -40,9 +40,9 @@ from hisp.new_model import NewModel
 # Parse command-line arguments
 parser = argparse.ArgumentParser(
     description="Run a single CSV bin simulation",
-    usage="%(prog)s bin_id scenario_folder scenario_name csv_file [--input-dir INPUT_DIR]"
+    usage="%(prog)s sim_id scenario_folder scenario_name csv_file [--input-dir INPUT_DIR]"
 )
-parser.add_argument("bin_id", type=int, help="CSV bin ID (1-based row number in input table)")
+parser.add_argument("sim_id", type=int, help="Simulation ID (from Sim. ID column, or 1-based row number)")
 parser.add_argument("scenario_folder", help="Scenario folder path")
 parser.add_argument("scenario_name", help="Scenario name")
 parser.add_argument("csv_file", help="Path to CSV input file")
@@ -52,7 +52,7 @@ parser.add_argument("--input-dir", dest="input_dir", default="input_files",
 # Parse positional arguments first (for backwards compatibility)
 args = parser.parse_args()
 
-bin_id = args.bin_id
+sim_id = args.sim_id
 scenario_folder = args.scenario_folder
 scenario_name = args.scenario_name
 csv_file_path = args.csv_file
@@ -265,8 +265,8 @@ def compute_and_attach_implantation_params(bin, scenario, plasma_data_handling, 
         print(f"    Atoms  - Range: {params_atom['implantation_range']*1e9:.3f} nm, Width: {params_atom['width']*1e9:.3f} nm, Reflection: {params_atom['reflection_coefficient']:.3f}")
 
 
-def run_new_csv_bin_scenario(scenario, bin_id: int):
-    """Run scenario for a specific CSV bin ID using NewModel class."""
+def run_new_csv_bin_scenario(scenario, sim_id: int):
+    """Run scenario for a specific simulation ID using NewModel class."""
     
     coolant_temp = 343.0
     
@@ -308,21 +308,21 @@ def run_new_csv_bin_scenario(scenario, bin_id: int):
         temperature_model_overrides=temperature_model_overrides,
     )
 
-    # Find the specific bin by bin_id (1-based row index in CSV)
+    # Find the specific bin by sim_id
     try:
-        # Search through bins to find one with matching bin_id
+        # Search through bins to find one with matching sim_id
         target_bin = None
         for bin in csv_reactor.bins:
-            if bin.bin_id == bin_id:
+            if bin.sim_id == sim_id:
                 target_bin = bin
                 break
         
         if target_bin is None:
-            available_ids = [b.bin_id for b in csv_reactor.bins]
-            raise ValueError(f"No bin found with bin_id {bin_id}. Available bin IDs: {sorted(set(available_ids))}")
+            available_ids = [b.sim_id for b in csv_reactor.bins]
+            raise ValueError(f"No bin found with sim_id {sim_id}. Available sim IDs: {sorted(set(available_ids))}")
         
         # Compute and attach implantation parameters
-        print(f"\n=== Computing implantation parameters for Bin ID {bin_id} (Bin #{target_bin.bin_number}) ===")
+        print(f"\n=== Computing implantation parameters for Sim ID {sim_id} (Flux ID #{target_bin.flux_id}) ===")
         compute_and_attach_implantation_params(target_bin, scenario, plasma_data_handling, use_physics_model=True)
         print()
     except ValueError as e:
@@ -334,9 +334,9 @@ def run_new_csv_bin_scenario(scenario, bin_id: int):
         bin_config = target_bin.bin_configuration
         
         print(f"\n{'='*60}")
-        print(f"Running CSV row {bin_id} (Bin #{target_bin.bin_number})")
-        print(f"  Bin ID (row): {target_bin.bin_id}")
-        print(f"  Bin number: {target_bin.bin_number}")
+        print(f"Running Sim ID {sim_id} (Flux ID #{target_bin.flux_id})")
+        print(f"  Sim ID: {target_bin.sim_id}")
+        print(f"  Flux ID: {target_bin.flux_id}")
         print(f"  Material: {target_bin.material.name}")
         print(f"  Mode: {target_bin.mode}")
         print(f"  Location: {target_bin.location}")
@@ -381,7 +381,7 @@ def run_new_csv_bin_scenario(scenario, bin_id: int):
             t_atom_flux = make_particle_flux_function(scenario, plasma_data_handling, target_bin, ion=False, tritium=True)
             
             print(f"  Debug time: {flat_top_time:.1f}s (flat-top of first FP pulse)")
-            print(f"  Bin {target_bin.bin_number} (mode={target_bin.mode})")
+            print(f"  Bin {target_bin.flux_id} (mode={target_bin.mode})")
             print(f"  D ion flux: {d_ion_flux(flat_top_time):.6e} part/m^2/s")
             print(f"  T ion flux: {t_ion_flux(flat_top_time):.6e} part/m^2/s")
             print(f"  D atom flux: {d_atom_flux(flat_top_time):.6e} part/m^2/s")
@@ -447,8 +447,8 @@ def run_new_csv_bin_scenario(scenario, bin_id: int):
         csv_bin_data["t"] = t_sampled.tolist() if hasattr(t_sampled, 'tolist') else list(t_sampled)
         
         # Add CSV bin specific information
-        csv_bin_data["bin_id"] = target_bin.bin_id
-        csv_bin_data["bin_number"] = target_bin.bin_number
+        csv_bin_data["sim_id"] = target_bin.sim_id
+        csv_bin_data["flux_id"] = target_bin.flux_id
         csv_bin_data["mode"] = target_bin.mode
         csv_bin_data["material"] = target_bin.material.name
         csv_bin_data["location"] = target_bin.location
@@ -482,10 +482,10 @@ def run_new_csv_bin_scenario(scenario, bin_id: int):
         # (material_name, mode_name, input_folder_name, results_dir computed earlier)
         profiles_dir = os.path.join(input_dir, f"profiles_{input_folder_name}")
         
-        base_filename = f"{results_dir}/id_{target_bin.bin_id}_bin_num_{target_bin.bin_number}_{material_name}_{mode_name}"
+        base_filename = f"{results_dir}/sim_{target_bin.sim_id}_flux_{target_bin.flux_id}_{material_name}_{mode_name}"
         output_file = f"{base_filename}.json"
         
-        profiles_base = f"{profiles_dir}/id_{target_bin.bin_id}_bin_num_{target_bin.bin_number}_{material_name}_{mode_name}"
+        profiles_base = f"{profiles_dir}/sim_{target_bin.sim_id}_flux_{target_bin.flux_id}_{material_name}_{mode_name}"
         profiles_file = f"{profiles_base}_profiles.json"
         
         # Save scalar quantities
@@ -507,7 +507,7 @@ def run_new_csv_bin_scenario(scenario, bin_id: int):
         print(f"{'='*60}\n")
 
     except Exception as e:
-        print(f"Failed to process CSV bin ID {bin_id}: {e}")
+        print(f"Failed to process Sim ID {sim_id}: {e}")
         import traceback
         traceback.print_exc()
 
@@ -522,4 +522,4 @@ def make_milestones(scenario, bin_config):
 
 
 if __name__ == "__main__":
-    run_new_csv_bin_scenario(scenario, bin_id)
+    run_new_csv_bin_scenario(scenario, sim_id)

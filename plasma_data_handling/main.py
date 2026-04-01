@@ -15,8 +15,8 @@ from .helpers import periodic_step_function, periodic_pulse_function
 from scenario import Pulse
 import pandas as pd
 
-from typing import Dict
-from hisp.bin import Bin
+from typing import Dict, Union
+from bins_from_csv.csv_bin import Bin
 
 
 class PlasmaDataHandling:
@@ -57,8 +57,8 @@ class PlasmaDataHandling:
         Returns:
             float: particle flux in part/m2/s
         """
-        # Use bin_number for CSV bins (now 0-based, matches DataFrame row index)
-        bin_index = bin.bin_number
+        # flux_id links to the Bin_Index column in the flux data files
+        bin_index = bin.flux_id
         
         if ion:
             flux_header = "Flux_Ion"
@@ -66,8 +66,8 @@ class PlasmaDataHandling:
             flux_frac = bin.ion_scaling_factor
         else:
             flux_header = "Flux_Atom"
-            # For atom flux: use parsed value directly (no scaling)
-            flux_frac = 1.0
+            # For atom flux: scale by atom_view_factor (default 1.0)
+            flux_frac = getattr(bin, 'atom_view_factor', 1.0)
 
         if pulse.pulse_type == "FP":
             flux = self.pulse_type_to_data[pulse.pulse_type][flux_header][bin_index]
@@ -117,7 +117,7 @@ class PlasmaDataHandling:
             value_off=0,
         )
 
-    def RISP_data(self, bin: Bin, t_rel: float | int) -> pd.DataFrame:
+    def RISP_data(self, bin: Bin, t_rel: Union[float, int]) -> pd.DataFrame:
         """Returns the correct RISP data file for indicated bin
 
         Args:
@@ -128,8 +128,8 @@ class PlasmaDataHandling:
         Returns:
             data: data from correct file as a numpy array
         """
-        # Use zero-based bin index for CSV bins (matches bin.bin_number now)
-        bin_index = bin.bin_number
+        # flux_id links to the Bin_Index column in the flux data files
+        bin_index = bin.flux_id
         
         # Determine if it's a divertor based on location
         div = bin.is_divertor
@@ -215,8 +215,8 @@ class PlasmaDataHandling:
         Returns:
             the surface heat flux in W/m2
         """
-        # Use bin_number for CSV bins (now 0-based, matches DataFrame row index)
-        bin_index = bin.bin_number
+        # flux_id links to the Bin_Index column in the flux data files
+        bin_index = bin.flux_id
 
         if pulse.pulse_type == "RISP":
             t_rel_within_a_single_risp = t_rel % pulse.total_duration

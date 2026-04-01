@@ -1,6 +1,15 @@
 """
 CSV-driven bin classes for HISP reactor modeling.
 Each bin represents one row from the CSV configuration table.
+
+Naming conventions
+------------------
+- **flux_id** (formerly *Bin number*): identifies the physical location / bin
+  in the binned‑flux‑data file (``Bin_Index`` column).  Many CSV rows can
+  share the same ``flux_id`` (e.g. sub‑bins of the same parent geometry bin).
+- **sim_id** (formerly *bin_id*): a **unique** identifier for each simulation
+  row.  If the CSV contains a *Sim. ID* column the value is taken from there;
+  otherwise the 1‑based row number is used automatically.
 """
 
 from typing import Optional, Any
@@ -39,11 +48,7 @@ class Bin:
     
     def __init__(
         self,
-        bin_number: int,
-        z_start: float,
-        r_start: float, 
-        z_end: float,
-        r_end: float,
+        flux_id: int,
         material: Material,
         thickness: float,
         cu_thickness: float,
@@ -52,21 +57,30 @@ class Bin:
         surface_area: float,
         f_ion_flux_fraction: float,
         location: str,
+        z_start: float = 0.0,
+        r_start: float = 0.0,
+        z_end: float = 0.0,
+        r_end: float = 0.0,
         coolant_temp: float = 343.0,
         bin_configuration: Optional[BinConfiguration] = None,
-        bin_id: Optional[int] = None,
+        sim_id: Optional[int] = None,
         calculate_implantation_params: bool = True,
+        atom_view_factor: float = 1.0,
+        # ── legacy aliases (ignored if the new names are provided) ──
+        bin_number: Optional[int] = None,
+        bin_id: Optional[int] = None,
     ):
         """
         Initialize a CSV-based bin.
         
         Args:
-            bin_number: Bin number from CSV
-            z_start: Z coordinate start position (m)
-            r_start: R coordinate start position (m)
-            z_end: Z coordinate end position (m)
-            r_end: R coordinate end position (m)
-            material: Material type (W, B, SS, etc.)
+            flux_id: Flux ID – links this row to the ``Bin_Index`` column in
+                the binned-flux-data files.  (Formerly called *Bin number*.)
+            z_start: Z coordinate start position (m)  [optional]
+            r_start: R coordinate start position (m)  [optional]
+            z_end: Z coordinate end position (m)  [optional]
+            r_end: R coordinate end position (m)  [optional]
+            material: Material object (W, B, SS, etc.)
             thickness: Bin thickness (m)
             cu_thickness: Copper thickness (m)
             mode: Operating mode (hw, lw, shadowed, wetted, etc.)
@@ -76,23 +90,29 @@ class Bin:
             location: Location identifier (FW, DIV, etc.)
             coolant_temp: Coolant temperature (K)
             bin_configuration: BinConfiguration object with simulation parameters
-            bin_id: Row number from CSV table (optional)
+            sim_id: Unique simulation identifier.  If *None*, defaults to
+                ``flux_id``.
+            atom_view_factor: Scalar multiplier applied to the **atomic** flux
+                for this bin (default 1.0 = no change).
+            calculate_implantation_params: whether to compute implantation
+                parameters from flux data at runtime.
             
         Calculated Properties:
-            ion_scaling_factor: Calculated as f_ion_flux_fraction * parent_bin_surf_area / surface_area
+            ion_scaling_factor: f_ion_flux_fraction * parent_bin_surf_area / surface_area
         """
-        # Geometric properties
-        self.bin_number = bin_number
+        # ── handle legacy keyword aliases ──
+        if bin_number is not None and flux_id is None:
+            flux_id = bin_number
+        if bin_id is not None and sim_id is None:
+            sim_id = bin_id
+
+        # Geometric properties (optional – may be 0 when not provided)
         self.z_start = z_start
         self.r_start = r_start
         self.z_end = z_end
         self.r_end = r_end
         
         # Material properties
-        # `material` must be a `Material` object (enforced). Passing a
-        # plain string is no longer supported — CSV loader must provide
-        # a `Material` instance that matches an entry in
-        # `input_files/materials.csv`.
         if not isinstance(material, Material):
             raise TypeError(
                 "Bin.material must be a Material instance. "
@@ -110,8 +130,19 @@ class Bin:
         self.location = location
         self.coolant_temp = coolant_temp
         
-        # CSV row identifier
-        self.bin_id = bin_id if bin_id is not None else bin_number
+        # ── identifiers ──
+        self.flux_id = flux_id
+        self.sim_id = sim_id if sim_id is not None else flux_id
+
+        # ── backward-compatible aliases ──
+        # Kept so that any old code doing ``bin.bin_number`` or ``bin.bin_id``
+        # still works without changes.
+        self.bin_number = self.flux_id
+        self.bin_id = self.sim_id
+
+        # Atom view factor
+        self.atom_view_factor = atom_view_factor
+
         # Calculated properties
         self.ion_scaling_factor = self.f_ion_flux_fraction * self.parent_bin_surf_area / self.surface_area
 
@@ -126,12 +157,9 @@ class Bin:
         )
         
         # Implantation parameters (computed at runtime from plasma data)
-        # Structure: {'ion': {'implantation_range': float, 'width': float, 'reflection_coefficient': float},
-        #            'atom': {...}}
         self.implantation_params = None
         
         # Control flag for calculating implantation parameters from flux data
-        # If True: calculate params from energy/angle data; if False: use defaults
         self.calculate_implantation_params = calculate_implantation_params
 
     @property
@@ -198,24 +226,20 @@ class Bin:
         angle = None
         
         try:
-            # Get the flux data for this pulse type
             pulse_type = getattr(pulse, 'pulse_type', None)
             if pulse_type is None:
                 return {'energy': energy, 'angle': angle}
             
-            # Access the pulse data from plasma_data_handling
             pulse_data = plasma_data_handling.pulse_type_to_data.get(pulse_type)
             if pulse_data is None:
                 return {'energy': energy, 'angle': angle}
             
-            # Find the row for this bin using Bin_Index
-            # bin_number matches Bin_Index directly (both 0-based)
-            bin_row = pulse_data[pulse_data['Bin_Index'] == self.bin_number]
+            # flux_id matches Bin_Index in the flux data files
+            bin_row = pulse_data[pulse_data['Bin_Index'] == self.flux_id]
             
             if bin_row.empty:
                 return {'energy': energy, 'angle': angle}
             
-            # Extract energy and angle based on particle type
             if ion:
                 energy = bin_row['E_ion'].values[0]
                 angle = bin_row['alpha_ion'].values[0]
@@ -223,15 +247,12 @@ class Bin:
                 energy = bin_row['E_atom'].values[0]
                 angle = bin_row['alpha_atom'].values[0]
             
-            # Handle NaN values
             if pd.isna(energy):
                 energy = None
             if pd.isna(angle):
                 angle = None
                 
         except (KeyError, IndexError, AttributeError):
-            # If any error occurs during extraction, return None values
-            # The calculator will use defaults
             pass
         
         return {
@@ -242,7 +263,7 @@ class Bin:
     def __str__(self) -> str:
         """String representation of the bin."""
         return (
-            f"Bin(id={self.bin_id}, bin_num={self.bin_number}, "
+            f"Bin(sim_id={self.sim_id}, flux_id={self.flux_id}, "
             f"material={self.material_name}, mode={self.mode}, "
             f"location={self.location}, thickness={self.thickness*1000:.1f}mm)"
         )
@@ -263,19 +284,29 @@ class BinCollection:
         """Add a bin to the collection."""
         self.bins.append(bin)
     
-    def get_bin_by_id(self, bin_id: int) -> Bin:
-        """Get bin by its CSV row ID."""
+    def get_bin_by_sim_id(self, sim_id: int) -> Bin:
+        """Get bin by its simulation ID."""
         for bin in self.bins:
-            if bin.bin_id == bin_id:
+            if bin.sim_id == sim_id:
                 return bin
-        raise ValueError(f"No bin found with ID {bin_id}")
+        raise ValueError(f"No bin found with sim_id {sim_id}")
+
+    # Backward-compatible alias
+    def get_bin_by_id(self, sim_id: int) -> Bin:
+        """Alias for get_bin_by_sim_id (backward compatibility)."""
+        return self.get_bin_by_sim_id(sim_id)
     
-    def get_bin_by_number(self, bin_number: int) -> Bin:
-        """Get bin by its bin number."""
+    def get_bin_by_flux_id(self, flux_id: int) -> Bin:
+        """Get first bin matching the given flux_id."""
         for bin in self.bins:
-            if bin.bin_number == bin_number:
+            if bin.flux_id == flux_id:
                 return bin
-        raise ValueError(f"No bin found with number {bin_number}")
+        raise ValueError(f"No bin found with flux_id {flux_id}")
+
+    # Backward-compatible alias
+    def get_bin_by_number(self, flux_id: int) -> Bin:
+        """Alias for get_bin_by_flux_id (backward compatibility)."""
+        return self.get_bin_by_flux_id(flux_id)
     
     def get_bins_by_material(self, material: str) -> list[Bin]:
         """Get all bins with specified material."""
@@ -342,7 +373,6 @@ class Reactor(BinCollection):
         Returns:
             Reactor: Complete reactor with all bins from the CSV table
         """
-        # Import here to avoid circular imports
         from bins_from_csv.csv_bin_loader import CSVBinLoader
         
         loader = CSVBinLoader(csv_path)

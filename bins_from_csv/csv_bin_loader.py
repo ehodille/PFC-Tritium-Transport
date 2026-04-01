@@ -1,12 +1,98 @@
 """
 CSV loader for creating Bin objects from CSV configuration files.
+
+Column matching is **flexible**: spaces, underscores, dots, parentheses,
+and letter case are all ignored when looking up column names.  For example,
+the following all match the same logical column:
+
+    Flux ID | flux_id | FLUX_ID | flux id | Flux_ID
+
+Each logical column also accepts a set of *aliases* (e.g. the old name
+``Bin number`` is still accepted as an alias for ``Flux ID``).
 """
 
+import re
 import pandas as pd
 from typing import List, Dict, Any, Optional
 from pathlib import Path
 from bins_from_csv.csv_bin import Bin, BinCollection, Reactor, BinConfiguration
 from materials.materials_loader import load_materials
+
+
+# ---------------------------------------------------------------------------
+# Flexible column-name resolution
+# ---------------------------------------------------------------------------
+
+def _normalise(name: str) -> str:
+    """Collapse a column name to a canonical lowercase form with no
+    spaces, underscores, dots, or parentheses."""
+    return re.sub(r"[\s_.()\-]+", "", str(name).strip().lower())
+
+
+# Mapping from *canonical alias* → *internal key* used by the loader.
+# Several human-readable forms are listed for every logical column.
+_COLUMN_ALIASES: Dict[str, str] = {}
+
+def _register(internal_key: str, *aliases: str):
+    """Register one or more human-friendly aliases for an internal key."""
+    for alias in aliases:
+        _COLUMN_ALIASES[_normalise(alias)] = internal_key
+
+# ── required columns ──
+_register("flux_id",
+          "Flux ID", "flux_id", "flux id", "FluxID", "Flux_ID",
+          "Bin number", "bin_number", "binnumber", "Bin_number")
+_register("material",        "Material", "material", "mat")
+_register("thickness",       "Thickness (m)", "thickness", "thickness_m", "Thickness")
+_register("cu_thickness",    "Cu thickness (m)", "cu_thickness", "cuthickness", "Cu thickness", "Cu_thickness")
+_register("mode",            "mode", "Mode")
+_register("parent_area",     "S. Area parent bin (m^2)", "s area parent bin", "parent_area",
+          "S Area parent bin", "parent area", "sareaparentbin")
+_register("surface_area",    "Surface area (m^2)", "surface_area", "surfacearea", "Surface area")
+_register("f_ion",           "Ion flux wetted fraction", "ion_flux_wetted_fraction",
+          "ionfluxwettedfraction",
+          # legacy aliases
+          "f (ion flux scaling factor)", "f", "f_ion", "fionfluxscalingfactor",
+          "ion flux scaling factor")
+_register("location",        "location", "Location", "loc")
+
+# ── optional columns ──
+_register("z_start",         "Z_start (m)", "z_start", "zstart", "Z start", "Z_start")
+_register("r_start",         "R_start (m)", "r_start", "rstart", "R start", "R_start")
+_register("z_end",           "Z_end (m)", "z_end", "zend", "Z end", "Z_end")
+_register("r_end",           "R_end (m)", "r_end", "rend", "R end", "R_end")
+_register("coolant_temp",    "Coolant Temp. (K)", "coolant_temp", "coolanttemp", "Coolant Temp")
+_register("rtol",            "rtol", "Rtol")
+_register("atol",            "atol", "Atol")
+_register("fp_max_stepsize", "FP max. stepsize (s)", "fp_max_stepsize", "fpmaxstepsize",
+          "FP max stepsize", "FP_max_stepsize")
+_register("max_stepsize_no_fp", "Max. stepsize no FP (s)", "max_stepsize_no_fp",
+          "maxstepsizenofp", "Max stepsize no FP")
+_register("bc_plasma",       "BC Plasma Facing Surface", "bc_plasma", "bcplasmafacingsurface",
+          "BC Plasma Facing", "bc_plasma_facing_surface")
+_register("bc_rear",         "BC rear surface", "bc_rear", "bcrearsurface", "BC_rear_surface")
+_register("calc_implant",    "Calculate Implantation Parameters", "calculateimplantationparameters",
+          "calc_implant", "Calculate Implantation")
+_register("sim_id",          "Sim. ID", "sim_id", "simid", "Sim ID", "SimID",
+          "Simulation ID", "simulation_id", "simulationid")
+_register("atom_view_factor","Atom view factor", "atom_view_factor", "atomviewfactor",
+          "Atom_view_factor", "atom view factor")
+
+
+def _resolve_column(col_name: str) -> str:
+    """Return the internal key for a CSV column, or the original name if unknown."""
+    return _COLUMN_ALIASES.get(_normalise(col_name), col_name)
+
+
+def _build_column_map(df_columns) -> Dict[str, str]:
+    """Build a mapping  internal_key → actual_csv_column_name  for every
+    column present in the DataFrame."""
+    col_map: Dict[str, str] = {}
+    for col in df_columns:
+        key = _resolve_column(col)
+        if key not in col_map:          # first match wins
+            col_map[key] = col
+    return col_map
 
 
 class CSVBinLoader:
@@ -18,6 +104,7 @@ class CSVBinLoader:
         
         Args:
             csv_path: Path to the CSV configuration file
+            materials_csv_path: Optional explicit path to materials CSV
         """
         self.csv_path = csv_path
         # Allow caller to pass either the direct path or the filename located in input_files/
@@ -30,9 +117,13 @@ class CSVBinLoader:
                 self.df = pd.read_csv(alt)
                 self.csv_path = str(alt)
             except FileNotFoundError:
-                # re-raise original error with more context
                 raise FileNotFoundError(f"CSV file not found at '{csv_path}' or '{alt}'")
+
+        # Build flexible column map once
+        self._col_map = _build_column_map(self.df.columns)
+
         self._validate_csv()
+
         # Load materials CSV if available (default: input_files/materials.csv)
         if materials_csv_path is None:
             materials_csv_path = Path("input_files/materials.csv")
@@ -41,30 +132,54 @@ class CSVBinLoader:
             print(f"✓ Loaded {len(self.materials)} materials from {materials_csv_path}")
         except Exception as e:
             raise RuntimeError(f"Failed to load materials from {materials_csv_path}: {e}")
-    
+
+    # ------------------------------------------------------------------
+    # helpers
+    # ------------------------------------------------------------------
+
+    def _csv_col(self, internal_key: str) -> Optional[str]:
+        """Return the *actual* CSV column name for an internal key, or None."""
+        return self._col_map.get(internal_key)
+
+    def _has_col(self, internal_key: str) -> bool:
+        return internal_key in self._col_map
+
     def _validate_csv(self):
-        """Validate that CSV has required columns."""
-        required_columns = [
-            'Bin number', 'Z_start (m)', 'R_start (m)', 'Z_end (m)', 'R_end (m)',
-            'Material', 'Thickness (m)', 'Cu thickness (m)', 'mode',
-            'S. Area parent bin (m^2)', 'Surface area (m^2)', 'f (ion flux scaling factor)', 'location'
+        """Validate that CSV has required columns (using flexible matching)."""
+        required_keys = [
+            "flux_id", "material", "thickness", "cu_thickness", "mode",
+            "parent_area", "surface_area", "f_ion", "location",
         ]
         
-        missing_columns = [col for col in required_columns if col not in self.df.columns]
-        if missing_columns:
-            raise ValueError(f"Missing required columns in CSV: {missing_columns}")
+        missing = [k for k in required_keys if not self._has_col(k)]
+        if missing:
+            raise ValueError(
+                f"Missing required columns in CSV (internal keys): {missing}.\n"
+                f"  Recognised columns: {list(self._col_map.keys())}\n"
+                f"  CSV header: {list(self.df.columns)}"
+            )
         
         print(f"✓ CSV validation passed. Found {len(self.df)} rows with {len(self.df.columns)} columns.")
-    
+
+    def _get(self, row: pd.Series, internal_key: str, default: Any = None) -> Any:
+        """Get a value from *row* using flexible column resolution."""
+        csv_col = self._csv_col(internal_key)
+        if csv_col is None:
+            return default
+        value = row[csv_col]
+        if pd.isna(value):
+            return default
+        return value
+
+    # kept for any callers that still use the old name
     def _get_column_value(self, row: pd.Series, column: str, default: Any = None) -> Any:
-        """Safely get column value with fallback to default."""
-        if column in self.df.columns:
-            value = row[column]
-            # Handle NaN values
-            if pd.isna(value):
-                return default
-            return value
-        return default
+        """Safely get column value – tries flexible resolution first, then literal."""
+        key = _resolve_column(column)
+        return self._get(row, key, default)
+
+    # ------------------------------------------------------------------
+    # bin construction
+    # ------------------------------------------------------------------
     
     def load_bin_from_row(self, row: pd.Series, row_index: int) -> Bin:
         """
@@ -77,20 +192,20 @@ class CSVBinLoader:
         Returns:
             Bin object
         """
-        # Required geometric properties
-        bin_number = int(row['Bin number'])
-        z_start = float(row['Z_start (m)'])
-        r_start = float(row['R_start (m)'])
-        z_end = float(row['Z_end (m)'])
-        r_end = float(row['R_end (m)'])
-        
-        # Required material properties
-        material = str(row['Material'])
-        thickness = float(row['Thickness (m)'])
-        cu_thickness = float(row['Cu thickness (m)'])
+        # ── Required columns ──
+        flux_id = int(self._get(row, "flux_id"))
 
-        # find matching Material object (case-insensitive). If no match,
-        # raise an error — CSV values must match `materials.csv`.
+        # ── Optional geometry columns (default 0.0) ──
+        z_start = float(self._get(row, "z_start", 0.0))
+        r_start = float(self._get(row, "r_start", 0.0))
+        z_end   = float(self._get(row, "z_end",   0.0))
+        r_end   = float(self._get(row, "r_end",   0.0))
+
+        # ── Material ──
+        material = str(self._get(row, "material"))
+        thickness = float(self._get(row, "thickness"))
+        cu_thickness = float(self._get(row, "cu_thickness"))
+
         mat_obj = None
         mat_name = material.strip()
         if hasattr(self, 'materials') and self.materials:
@@ -106,48 +221,47 @@ class CSVBinLoader:
                 f"Unknown material '{material}' in CSV row {row_index + 1}. "
                 f"Available materials: {available}"
             )
-        
-        # Required operating properties
-        mode = str(row['mode'])
-        parent_bin_surf_area = float(row['S. Area parent bin (m^2)'])
-        surface_area = float(row['Surface area (m^2)'])
-        f_ion_flux_fraction = float(row['f (ion flux scaling factor)'])
-        location = str(row['location'])
-        
-        # Optional properties with defaults
-        coolant_temp = self._get_column_value(row, 'Coolant Temp. (K)', 343.0)
-        if coolant_temp is not None:
-            coolant_temp = float(coolant_temp)
-        else:
-            coolant_temp = 343.0
-        
-        # Simulation configuration with defaults
-        rtol = float(self._get_column_value(row, 'rtol', 1e-10))
-        atol = float(self._get_column_value(row, 'atol', 1e10))
-        fp_max_stepsize = float(self._get_column_value(row, 'FP max. stepsize (s)', 5.0))
-        max_stepsize_no_fp = float(self._get_column_value(row, 'Max. stepsize no FP (s)', 100.0))
-        
-        # Boundary conditions with defaults
-        bc_plasma_facing = self._get_column_value(row, 'BC Plasma Facing Surface', 'Robin - Surf. Rec. + Implantation')
-        bc_rear = self._get_column_value(row, 'BC rear surface', 'Neumann - no flux')
-        
-        # Implantation parameters calculation flag (default: True to calculate from flux data)
-        calc_implant_str = self._get_column_value(row, 'Calculate Implantation Parameters', 'Yes')
-        calculate_implantation_params = str(calc_implant_str).lower().strip() != 'no'
-        
-        # Create bin configuration
+
+        # ── Operating properties ──
+        mode = str(self._get(row, "mode"))
+        parent_bin_surf_area = float(self._get(row, "parent_area"))
+        surface_area = float(self._get(row, "surface_area"))
+        f_ion_flux_fraction = float(self._get(row, "f_ion"))
+        location = str(self._get(row, "location"))
+
+        # ── Optional scalar columns ──
+        coolant_temp = float(self._get(row, "coolant_temp", 343.0))
+
+        rtol = float(self._get(row, "rtol", 1e-10))
+        atol = float(self._get(row, "atol", 1e10))
+        fp_max_stepsize = float(self._get(row, "fp_max_stepsize", 5.0))
+        max_stepsize_no_fp = float(self._get(row, "max_stepsize_no_fp", 100.0))
+
+        bc_plasma_facing = self._get(row, "bc_plasma", "Robin - Surf. Rec. + Implantation")
+        bc_rear = self._get(row, "bc_rear", "Neumann - no flux")
+
+        calc_implant_str = self._get(row, "calc_implant", "Yes")
+        calculate_implantation_params = str(calc_implant_str).lower().strip() != "no"
+
+        # ── Sim ID (optional column, else 1-based row number) ──
+        raw_sim_id = self._get(row, "sim_id", None)
+        sim_id = int(raw_sim_id) if raw_sim_id is not None else (row_index + 1)
+
+        # ── Atom view factor (optional, default 1.0) ──
+        atom_view_factor = float(self._get(row, "atom_view_factor", 1.0))
+
+        # ── Build config & Bin ──
         bin_config = BinConfiguration(
             rtol=rtol,
             atol=atol,
             fp_max_stepsize=fp_max_stepsize,
             max_stepsize_no_fp=max_stepsize_no_fp,
             bc_plasma_facing_surface=bc_plasma_facing,
-            bc_rear_surface=bc_rear
+            bc_rear_surface=bc_rear,
         )
-        
-        # Create Bin instance; `mat_obj` is guaranteed non-None here.
+
         bin_obj = Bin(
-            bin_number=bin_number,
+            flux_id=flux_id,
             z_start=z_start,
             r_start=r_start,
             z_end=z_end,
@@ -162,11 +276,10 @@ class CSVBinLoader:
             location=location,
             coolant_temp=coolant_temp,
             bin_configuration=bin_config,
-            bin_id=row_index + 1,  # 1-based row number in CSV (unique per row)
+            sim_id=sim_id,
             calculate_implantation_params=calculate_implantation_params,
+            atom_view_factor=atom_view_factor,
         )
-        # material already stored on the bin by its constructor; nothing more to do
-
         return bin_obj
     
     def load_all_bins(self) -> BinCollection:
@@ -177,7 +290,6 @@ class CSVBinLoader:
             BinCollection containing all bins
         """
         bins = []
-        
         for row_index, row in self.df.iterrows():
             bin_obj = self.load_bin_from_row(row, row_index)
             bins.append(bin_obj)
@@ -185,30 +297,23 @@ class CSVBinLoader:
         return BinCollection(bins)
     
     def load_reactor(self) -> Reactor:
-        """
-        Load a complete reactor from the CSV file.
-        
-        Returns:
-            Reactor containing all bins
-        """
+        """Load a complete reactor from the CSV file."""
         bin_collection = self.load_all_bins()
         return Reactor(bin_collection.bins)
     
     def get_summary(self) -> Dict[str, Any]:
-        """
-        Get summary statistics of the CSV data.
-        
-        Returns:
-            Dictionary with summary information
-        """
+        """Get summary statistics of the CSV data."""
+        flux_col = self._csv_col("flux_id")
+        mat_col  = self._csv_col("material")
+        loc_col  = self._csv_col("location")
+        mode_col = self._csv_col("mode")
         summary = {
             'total_rows': len(self.df),
-            'unique_bin_numbers': len(self.df['Bin number'].unique()),
-            'materials': self.df['Material'].value_counts().to_dict(),
-            'locations': self.df['location'].value_counts().to_dict(),
-            'modes': self.df['mode'].value_counts().to_dict(),
+            'unique_flux_ids': len(self.df[flux_col].unique()) if flux_col else 0,
+            'materials': self.df[mat_col].value_counts().to_dict() if mat_col else {},
+            'locations': self.df[loc_col].value_counts().to_dict() if loc_col else {},
+            'modes': self.df[mode_col].value_counts().to_dict() if mode_col else {},
         }
-        
         return summary
     
     def print_summary(self):
@@ -217,7 +322,7 @@ class CSVBinLoader:
         
         print("\n=== CSV Data Summary ===")
         print(f"Total rows: {summary['total_rows']}")
-        print(f"Unique bin numbers: {summary['unique_bin_numbers']}")
+        print(f"Unique flux IDs: {summary['unique_flux_ids']}")
         
         print("\nMaterials:")
         for material, count in summary['materials'].items():
@@ -235,18 +340,8 @@ class CSVBinLoader:
 def load_csv_reactor(csv_path: str, materials_csv_path: Optional[str] = None) -> Reactor:
     """
     Convenience function to load a reactor from CSV file.
-    
-    Args:
-        csv_path: Path to the CSV configuration file
-        materials_csv_path: Optional explicit path to materials CSV.
-            If None, looks for materials.csv in the same directory as csv_path,
-            then falls back to input_files/materials.csv.
-        
-    Returns:
-        Reactor object
     """
     if materials_csv_path is None:
-        # Prefer materials.csv alongside the input CSV (works regardless of CWD)
         candidate = Path(csv_path).parent / "materials.csv"
         if candidate.exists():
             materials_csv_path = candidate
@@ -257,29 +352,20 @@ def load_csv_reactor(csv_path: str, materials_csv_path: Optional[str] = None) ->
 # Example usage function
 def example_usage():
     """Example of how to use the CSV bin loader."""
-    
-    # Load reactor from CSV
     csv_path = "input_files/input_table.csv"
-    
     try:
-        # Create loader and load reactor
         loader = CSVBinLoader(csv_path)
         loader.print_summary()
-        
         reactor = loader.load_reactor()
-        
         print(f"\n✓ Created {reactor}")
         print(f"  First wall bins: {len(reactor.first_wall_bins)}")
         print(f"  Divertor bins: {len(reactor.divertor_bins)}")
-        
-        # Example bin access
         if len(reactor.bins) > 0:
-            example_bin = reactor.bins.bins[0]
+            example_bin = reactor.bins[0]
             print(f"\nExample bin: {example_bin}")
-            print(f"  Configuration: rtol={example_bin.configuration.rtol}")
+            print(f"  Configuration: rtol={example_bin.bin_configuration.rtol}")
             print(f"  Geometry: {example_bin.start_point} -> {example_bin.end_point}")
             print(f"  Length: {example_bin.length:.3f} m")
-        
     except Exception as e:
         print(f"Error loading CSV reactor: {e}")
 

@@ -218,12 +218,28 @@ def analyze_err_files():
     total = len(progress_data)
     avg_progress = ((total_progress - completed * 100) / in_progress) if in_progress > 0 else 0
     
+    # Get elapsed time from a job in progress
+    in_progress_elapsed = None
+    for item in progress_data:
+        if item['progress'] is not None and not item['failed'] and 0 < item['progress'] < 100 and item['elapsed'] is not None:
+            in_progress_elapsed = item['elapsed']
+            break
+    
+    # Calculate remaining time: elapsed * (100 / total_progress - 1)
+    overall_progress = (total_progress / total) if total > 0 else 0
+    remaining = None
+    if in_progress_elapsed and overall_progress > 0:
+        remaining = in_progress_elapsed * (100 / overall_progress - 1)
+        remaining = max(0, remaining)
+    
     print(f"\nSummary:")
     print(f"  Total jobs: {total}")
     print(f"  Completed: {completed}")
     print(f"  In progress: {in_progress} (avg {avg_progress:.1f}%)")
     print(f"  Failed: {failed}")
     print(f"  Unknown progress: {unknown}")
+    print(f"  Overall progress: {overall_progress:.1f}%")
+    print(f"  Estimated remaining time: {format_time(remaining)}")
     print("="*90 + "\n")
 
 
