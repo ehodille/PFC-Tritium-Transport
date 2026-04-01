@@ -34,6 +34,9 @@ from run_bin_functions import load_scenario_variable
 # Import implantation calculator
 from implantation_calculator import ImplantationCalculator
 
+# Import resolve helper
+from resolve_input_dir import resolve_input_dir
+
 # Import NewModel class from hisp
 from hisp.new_model import NewModel
 
@@ -57,6 +60,10 @@ scenario_folder = args.scenario_folder
 scenario_name = args.scenario_name
 csv_file_path = args.csv_file
 input_dir = args.input_dir
+
+# Resolve input directory (searches inside PFC-TT and one level above)
+if input_dir and input_dir != "input_files":
+    input_dir = resolve_input_dir(input_dir, repo_root=parent_dir)
 
 # If input_dir is provided, try to find materials and mesh files in that directory
 if input_dir and input_dir != "input_files":

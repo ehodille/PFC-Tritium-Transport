@@ -54,11 +54,71 @@ fi
 INPUT_DIR="$1"
 BIN_SPEC="${@:2}"  # Everything after input_dir
 
-# Validate input directory exists
-if [ ! -d "$INPUT_DIR" ]; then
-    echo "Error: Input directory '$INPUT_DIR' not found!"
-    exit 1
-fi
+# ---------- Resolve input directory ----------
+# Accepts an absolute path, a relative path, or a bare folder name.
+# For a bare folder name (no slashes), search both inside the current
+# directory (PFC-Tritium-Transport) and one level above it.
+# Errors out if the folder is found in both locations (ambiguous).
+case "$INPUT_DIR" in
+    /*)
+        # Absolute path - use as-is
+        if [ ! -d "$INPUT_DIR" ]; then
+            echo "Error: Input directory '$INPUT_DIR' not found!"
+            exit 1
+        fi
+        ;;
+    */*)
+        # Relative path with slashes - use as-is, then make absolute
+        if [ ! -d "$INPUT_DIR" ]; then
+            echo "Error: Input directory '$INPUT_DIR' not found!"
+            exit 1
+        fi
+        INPUT_DIR="$(cd "$INPUT_DIR" && pwd)"
+        ;;
+    *)
+        # Bare folder name - search in CWD and one level up
+        _in_cwd=false
+        _in_parent=false
+        _cwd_abs=""
+        _parent_abs=""
+
+        if [ -d "./$INPUT_DIR" ]; then
+            _in_cwd=true
+            _cwd_abs="$(cd "./$INPUT_DIR" && pwd)"
+        fi
+        if [ -d "../$INPUT_DIR" ]; then
+            _in_parent=true
+            _parent_abs="$(cd "../$INPUT_DIR" && pwd)"
+        fi
+
+        # Avoid false positive when both resolve to the same directory
+        if $_in_cwd && $_in_parent && [ "$_cwd_abs" != "$_parent_abs" ]; then
+            echo "Error: Input directory '$INPUT_DIR' found in BOTH locations:"
+            echo "  Inside PFC-TT:  $_cwd_abs"
+            echo "  Outside PFC-TT: $_parent_abs"
+            echo "  Provide a full or relative path to disambiguate."
+            exit 1
+        fi
+
+        if $_in_cwd; then
+            INPUT_DIR="$_cwd_abs"
+        elif $_in_parent; then
+            echo "  Resolved input directory (outside PFC-TT): $_parent_abs"
+            INPUT_DIR="$_parent_abs"
+        else
+            echo "Error: Input directory '$INPUT_DIR' not found!"
+            echo "  Searched: $(pwd)/$INPUT_DIR"
+            echo "  Searched: $(cd .. && pwd)/$INPUT_DIR"
+            exit 1
+        fi
+        ;;
+esac
+
+# Ensure INPUT_DIR is absolute (for paths that were already absolute above)
+case "$INPUT_DIR" in
+    /*) ;; # already absolute
+    *)  INPUT_DIR="$(cd "$INPUT_DIR" && pwd)" ;;
+esac
 
 # Check for required files
 if [ ! -f "$INPUT_DIR/input_table.csv" ]; then

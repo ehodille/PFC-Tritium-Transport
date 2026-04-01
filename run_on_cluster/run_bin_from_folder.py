@@ -41,6 +41,8 @@ hisp_src = os.path.abspath(os.path.join(parent_dir, "hisp", "src"))
 if hisp_src not in sys.path:
     sys.path.insert(0, hisp_src)
 
+from resolve_input_dir import resolve_input_dir
+
 
 def find_scenario_file(input_dir: str) -> str:
     """Find the scenario .py file in input_dir (any .py except mesh.py and temperature_models.py)."""
@@ -70,7 +72,7 @@ def main():
                              "or 1-based row number if column is absent)")
     args = parser.parse_args()
 
-    input_dir = args.input_folder
+    input_dir = resolve_input_dir(args.input_folder, repo_root=parent_dir)
     sim_id = args.sim_id
 
     # ---- Validate required files ----
