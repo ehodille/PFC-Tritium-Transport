@@ -228,7 +228,8 @@ class PlasmaDataHandling:
 
         if pulse.pulse_type == "FP":
             photon_heat_radiation = 0.11e6  # W/m2
-            heat_total = data["heat_total"][bin_index] + photon_heat_radiation 
+            #heat_total = data["heat_total"][bin_index] + photon_heat_radiation
+            heat_total = data["heat_total"][bin_index] #New plasma background already includes photon radiation
             heat_ion = data["heat_ion"][bin_index]
             
             # Use ion_scaling_factor as wetted fraction (same logic as original)
