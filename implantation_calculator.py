@@ -174,35 +174,88 @@ class ImplantationCalculator:
         angle: float,
         particle_type: str
     ) -> Dict[str, float]:
-        """Implantation parameters for **stainless steel** (SS / Fe-based).
-
-        Coefficients are derived from the same functional form as W but
-        fitted separately for an Fe-dominated target.  SS is lighter and
-        softer than W, so particles penetrate deeper and reflection is
-        lower.
         """
-        # Fitted equation coefficients (range) – SS-specific
-        a = -1.489e-13
-        b = 1.364e-10
-        c = 3.327e-4
-        d = 6.372e-1
+        Implantation parameters for stainless steel (SS / Fe‑based).
 
-        # Fitted equation coefficients (width / sigma) – SS-specific
-        aa = -4.758e-14
-        bb = 7.699e-11
-        cc = 2.378e-4
-        dd = 6.342e-1
+        The formulas below follow physically‑motivated energy dependences 
+        (power laws for range/width and exponential decay for reflection) 
+        while the angle dependences were fitted as smooth polynomials 
+        using TRIM data at 0°, 45°, 60°, 80° — a wide angular span for 
+        which polynomial interpolation behaves reliably.
+        """
 
-        complement = 90.0 - angle
-        implantation_range = (a * complement + b) * (energy ** (c * complement + d))
-        width = (aa * complement + bb) * (energy ** (cc * complement + dd))
+        θ = float(angle)
 
-        reflection_coefficient = 0.4  # 40 % reflection for SS (lower than W)
+        # --------------------------------------------------------------
+        # IMPLANTATION RANGE  R(E,θ) = A_R(θ) * E^( B_R(θ) )
+        #   • Power‑law in energy comes from nuclear stopping physics.
+        #   • Angle affects the exponent B_R because oblique incidence
+        #     reduces the effective penetration efficiency.
+        # --------------------------------------------------------------
 
+        # A_R(θ): quadratic θ‑dependence (from TRIM fit)
+        A_R = 3.20810e-15 * θ**2 -5.35410e-15 * θ + 1.01511e-10
+
+        # B_R(θ): quadratic θ‑dependence
+        B_R = (-5.80605e-6 * θ**2
+            - 3.44069e-4 * θ
+            + 7.15748e-1)
+
+        implantation_range = A_R * (energy ** B_R)
+
+        # --------------------------------------------------------------
+        # IMPLANTATION WIDTH (STRAGGLE)  W(E,θ) = A_W(θ) * E^( B_W(θ) )
+        #   • Straggle follows similar power‑law scaling to range because
+        #     both depend on the distribution of stopping collisions.
+        #   • Angle modifies both scale and exponent via path‑length effects.
+        # --------------------------------------------------------------
+
+        # A_W(θ): quadratic θ‑dependence from TRIM fit
+        A_W = 1.5099807e-15 * θ**2 -4.00416709e-14 * θ + 7.216342e-11
+
+        # B_W(θ): quadratic θ‑dependence
+        B_W = (-6.30609947e-06 * θ**2
+            + 8.22290724e-05 * θ
+            + 0.667578617)
+
+        width = A_W * (energy ** B_W)
+
+        # --------------------------------------------------------------
+        # REFLECTION COEFFICIENT 
+        #   R(E,θ) = C(θ) * exp( -E / E0(θ) ) + R_inf(θ)
+        #
+        #   • Reflection decreases exponentially with energy because ions
+        #     penetrate more effectively at higher E (E0 acts like a 
+        #     characteristic "penetration threshold").
+        #   • R_inf(θ) is the asymptotic high‑energy reflection probability.
+        #   • Angular dependence arises because grazing incidence increases
+        #     the fraction of ions that skim the surface.
+        # --------------------------------------------------------------
+
+        # C(θ): quadratic polynomial in θ
+        Cθ = (-5.86020535e-05 * θ**2
+            + 3.06110162e-03 * θ
+            + 0.31582)
+
+        # R_inf(θ): quadratic
+        R_inf = (1.1236e-04 * θ**2
+                - 3.13524e-03 * θ
+                + 0.07494)
+
+        # E0(θ): quadratic
+        E0 = (-0.100817948 * θ**2
+            + 6.34713048 * θ
+            + 1844.87181)
+
+        reflection_coefficient = Cθ * np.exp(-energy / E0) + R_inf
+
+        # --------------------------------------------------------------
+        # RETURN RESULTS
+        # --------------------------------------------------------------
         return {
-            'implantation_range': float(implantation_range),
-            'width': float(width),
-            'reflection_coefficient': float(reflection_coefficient),
+            "implantation_range": float(implantation_range),
+            "width": float(width),
+            "reflection_coefficient": float(reflection_coefficient)
         }
 
 
