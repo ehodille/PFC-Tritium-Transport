@@ -35,7 +35,7 @@ print("=" * 60)
 print("  PFC-Tritium-Transport — local simulation runner")
 print("=" * 60)
 
-input_folder = input("\nInput folder path: ").strip()
+input_folder = input("\nInput folder name: ").strip()
 if not input_folder:
     print("Error: input folder cannot be empty.")
     sys.exit(1)

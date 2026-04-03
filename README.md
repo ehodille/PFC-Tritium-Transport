@@ -84,6 +84,7 @@ All simulations are now launched from a dedicated input folder containing the fo
 Run `main.py` from the repository root. It will prompt for the input folder and the simulation ID:
 
 ```bash
+cd PFC-Tritium-Transport
 python main.py
 ```
 
@@ -92,14 +93,25 @@ python main.py
   PFC-Tritium-Transport — local simulation runner
 ============================================================
 
-Input folder path: my_input_folder
+Input folder name: my_input_folder
 Simulation ID    : 1
 ```
 
-- **Input folder path** — path to the folder containing `input_table.csv`, `scenario.py`, etc. Can be absolute or relative to the repository root.
+- **Input folder name** — bare name (e.g. `my_input_folder`) OR a relative/absolute path (e.g. `../simulations/my_input_folder`). The runner will search for bare names in:
+  1. `simulations/<name>` (recommended, inside the repo)
+  2. `<name>` (directly inside the repo root)
+  3. `../<name>` (parent directory)
 - **Simulation ID** — integer ID of the bin to run, matching the `Sim. ID` column in `input_table.csv` (or 1-based row number if the column is absent).
 
 Results are saved to `<input_folder>/results_<folder_name>/`.
+
+> **Best practice — store input folders inside `simulations/` subfolder.**
+> This folder is gitignored by default, so your working inputs and results never commit. The runner automatically finds folders inside it:
+> ```bash
+> python main.py
+> # Input folder name: my_input_folder
+> # → finds PFC-Tritium-Transport/simulations/my_input_folder/
+> ```
 
 #### Cluster (SLURM, ITER SCDCC)
 - Use `run_on_cluster/slurm_folder_jobs.sh` to submit jobs to the cluster. This script is tailored for ITER's Science Division Computer Cluster (SCDCC) and includes site-specific module loads and paths.
