@@ -76,12 +76,18 @@ case "$INPUT_DIR" in
         INPUT_DIR="$(cd "$INPUT_DIR" && pwd)"
         ;;
     *)
-        # Bare folder name - search in CWD and one level up
+        # Bare folder name - search in simulations/, CWD, and one level up
+        _in_simulations=false
         _in_cwd=false
         _in_parent=false
+        _simulations_abs=""
         _cwd_abs=""
         _parent_abs=""
 
+        if [ -d "./simulations/$INPUT_DIR" ]; then
+            _in_simulations=true
+            _simulations_abs="$(cd "./simulations/$INPUT_DIR" && pwd)"
+        fi
         if [ -d "./$INPUT_DIR" ]; then
             _in_cwd=true
             _cwd_abs="$(cd "./$INPUT_DIR" && pwd)"
@@ -91,22 +97,36 @@ case "$INPUT_DIR" in
             _parent_abs="$(cd "../$INPUT_DIR" && pwd)"
         fi
 
-        # Avoid false positive when both resolve to the same directory
-        if $_in_cwd && $_in_parent && [ "$_cwd_abs" != "$_parent_abs" ]; then
-            echo "Error: Input directory '$INPUT_DIR' found in BOTH locations:"
-            echo "  Inside PFC-TT:  $_cwd_abs"
-            echo "  Outside PFC-TT: $_parent_abs"
+        # Count distinct locations found (ignoring duplicates caused by symlinks)
+        _found_count=0
+        _last_abs=""
+        for _loc in "$_simulations_abs" "$_cwd_abs" "$_parent_abs"; do
+            if [ -n "$_loc" ] && [ "$_loc" != "$_last_abs" ]; then
+                _found_count=$((_found_count + 1))
+                _last_abs="$_loc"
+            fi
+        done
+
+        if [ "$_found_count" -gt 1 ]; then
+            echo "Error: Input directory '$INPUT_DIR' found in multiple locations:"
+            $_in_simulations && echo "  simulations/: $_simulations_abs"
+            $_in_cwd        && echo "  Inside PFC-TT: $_cwd_abs"
+            $_in_parent     && echo "  Outside PFC-TT: $_parent_abs"
             echo "  Provide a full or relative path to disambiguate."
             exit 1
         fi
 
-        if $_in_cwd; then
+        if $_in_simulations; then
+            echo "  Resolved input directory (simulations/): $_simulations_abs"
+            INPUT_DIR="$_simulations_abs"
+        elif $_in_cwd; then
             INPUT_DIR="$_cwd_abs"
         elif $_in_parent; then
             echo "  Resolved input directory (outside PFC-TT): $_parent_abs"
             INPUT_DIR="$_parent_abs"
         else
             echo "Error: Input directory '$INPUT_DIR' not found!"
+            echo "  Searched: $(pwd)/simulations/$INPUT_DIR"
             echo "  Searched: $(pwd)/$INPUT_DIR"
             echo "  Searched: $(cd .. && pwd)/$INPUT_DIR"
             exit 1
