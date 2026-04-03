@@ -5,6 +5,7 @@ channels:
 dependencies:
   - python=3.10
   - festim=2.0b2.post2
+  - setuptools=67.8.0
   - pip
   - pandas>=2.0
   - numpy>=1.24
