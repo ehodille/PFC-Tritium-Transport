@@ -2,6 +2,7 @@
 __pycache__/
 *.py[cod]
 *$py.class
+# Ignore any folder starting with logs or containing logs
 
 # C extensions
 *.so
@@ -117,10 +118,46 @@ venv.bak/
 *.err
 *.json
 
+# Ignore images
+*.png
+*.jpg
+*.jpeg
+*.svg
+*.gif
+*.tif
+*.tiff
+*.bmp
+*.webp
+
+# Ignore JSON files
+*.json
+
 # Output folders of hisp-for-iter
 logs/
 results/
 job_data/
 
+# Simulation results and intermediate outputs (any folder matching these patterns)
+results_*/
+profiles_*/
+checkpoints/
+
+# Log folders produced by cluster/local runs
+logs_*/
+
+# Working simulation input folders — place them inside simulations/
+# The folder itself is tracked (via .gitkeep); its contents are not.
+# The example folder (input_files_example/) is intentionally NOT ignored.
+simulations/*
+!simulations/.gitkeep
+
+# HDF5 / XDMF simulation output files (already partially covered above, be explicit)
+*.h5
+*.xdmf
+*.bp
+
+# Slurm output files
+*.out
+*.err
 
 *.DS_Store
