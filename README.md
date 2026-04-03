@@ -4,6 +4,13 @@ The purpose of this repository is to obtain Hydrogen inventory estimations in th
 
 ---
 
+## Prerequisites
+
+- **Operating System:** Linux (any modern distribution; tested on RHEL-based systems at ITER). macOS/Windows are not officially supported.
+- **Conda distribution:** [Miniconda](https://docs.anaconda.com/miniconda/) is highly recommended. It provides a minimal conda installation and avoids the bloated dependency graph of full Anaconda, which can cause extremely slow or stalled environment solves.
+
+---
+
 ## How to Install
 
 ### 1. Clone this repository
@@ -11,27 +18,36 @@ The purpose of this repository is to obtain Hydrogen inventory estimations in th
 git clone --branch main https://github.com/iterorganization/PFC-Tritium-Transport.git
 ```
 
-### 2. Recreate the Python environment
-We use **conda** for reproducibility. Make sure the file `PFC-TT.yml` was correctly downloaded from this repository and run:
+### 2. Create the conda environment
+The `PFC-TT.yml` file included in this repository pins all required conda packages — including **FESTIM** and its heavy dependencies (FEniCSx, PETSc, MPI, etc.) — so that the solver resolves everything in a single pass.
+
 ```bash
 conda env create -f PFC-TT.yml
 conda activate PFC-TT
 ```
 
----
+> **Important:** FESTIM must be solved together with all other conda packages at environment-creation time. Installing it separately afterwards (e.g. `conda install festim`) will typically hang indefinitely because the solver cannot reconcile FESTIM's dependency tree with an already-locked environment.
 
-### 3. Install FESTIM2 and custom HISP version
-We use a specific branch of HISP which will remain static until significant improvements are made. 
+This step installs all core simulation dependencies, including:
+- **FESTIM v2.0-beta.2**
+- **FEniCS-DOLFINx v0.10.0** — finite element backend
+- **FEniCS-Basix v0.10.0**, **FFCx v0.10.1**, **UFL v2025.2.1** — FEniCSx components
+- **PETSc v3.24.5** + **petsc4py** — parallel linear algebra solvers
+- **MPICH v4.3.2** + **mpi4py** — MPI support for parallel runs
+- **HDF5 v1.14.6** — data I/O
+- **pandas, numpy, scipy, matplotlib, jupyterlab** — data analysis and visualisation
+
+### 3. Install HISP and h_transport_materials
+We use a specific branch of HISP which will remain static until significant improvements are made.
 To avoid FESTIM version conflicts, we install HISP **without dependencies**:
 ```bash
-conda install -c conda-forge 'festim=2.0b2.post2'
 pip install --no-deps git+https://github.com/AdriaLlealS/hisp.git@main
 pip install h_transport_materials
 ```
+
 This will install:
-- **FESTIM v2.0-beta.2**
-- **dolfinx v0.10.0**
 - **HISP**
+- **h_transport_materials**
 - All required dependencies
 
 ---
