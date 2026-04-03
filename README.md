@@ -80,6 +80,27 @@ All simulations are now launched from a dedicated input folder containing the fo
 
 ### Runners: Cluster and Local
 
+#### Local (interactive)
+Run `main.py` from the repository root. It will prompt for the input folder and the simulation ID:
+
+```bash
+python main.py
+```
+
+```
+============================================================
+  PFC-Tritium-Transport — local simulation runner
+============================================================
+
+Input folder path: my_input_folder
+Simulation ID    : 1
+```
+
+- **Input folder path** — path to the folder containing `input_table.csv`, `scenario.py`, etc. Can be absolute or relative to the repository root.
+- **Simulation ID** — integer ID of the bin to run, matching the `Sim. ID` column in `input_table.csv` (or 1-based row number if the column is absent).
+
+Results are saved to `<input_folder>/results_<folder_name>/`.
+
 #### Cluster (SLURM, ITER SCDCC)
 - Use `run_on_cluster/slurm_folder_jobs.sh` to submit jobs to the cluster. This script is tailored for ITER's Science Division Computer Cluster (SCDCC) and includes site-specific module loads and paths.
 - Example usages:
@@ -91,15 +112,6 @@ sbatch run_on_cluster/slurm_folder_jobs.sh input_files
 # Run specific bins for a scenario
 sbatch run_on_cluster/slurm_folder_jobs.sh input_files "0-4, 10-12"
 ```
-
-#### Local (Single Bin, Any System)
-- Use `run_on_cluster/run_bin_from_folder.py` to run a single bin locally from an input folder. This is useful for testing or debugging without SLURM.
-- Example usage:
-
-```bash
-python run_on_cluster/run_bin_from_folder.py my_input_folder 1
-```
-- This will run the simulation for bin ID 1 (first row in `input_table.csv`) using the files in `my_input_folder/`.
 
 ### Notes
 - All data files (fluxes, heat loads, energies, etc.) are specified in `scenario.py`. You do not need to modify the runner or hardcode file paths elsewhere.
