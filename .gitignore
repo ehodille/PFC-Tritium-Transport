@@ -145,11 +145,13 @@ checkpoints/
 # Log folders produced by cluster/local runs
 logs_*/
 
-# Working simulation input folders — place them inside simulations/
-# The folder itself is tracked (via .gitkeep); its contents are not.
+# Working simulation input folders — place them inside simulations/ or scenarios/
+# The folders themselves are tracked (via .gitkeep); their contents are not.
 # The example folder (input_files_example/) is intentionally NOT ignored.
 simulations/*
 !simulations/.gitkeep
+scenarios/*
+!scenarios/.gitkeep
 
 # HDF5 / XDMF simulation output files (already partially covered above, be explicit)
 *.h5

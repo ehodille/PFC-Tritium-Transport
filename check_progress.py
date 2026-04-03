@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 """
-Check progress of SLURM jobs from .err files.
+Check progress and status of SLURM jobs from an input folder's logs directory.
 
 Usage:
     python check_progress.py <input_folder>
 
-Reads all .err files in <input_folder>/logs/ and prints their current progress %.
-The input_folder can live inside PFC-Tritium-Transport or one level above it.
+Reads all .out and .err files in <input_folder>/logs/ and prints:
+  - A completion status summary (completed / failed / running) from .out files
+  - A per-job progress table with elapsed/remaining time estimates from .err files
+
+The input_folder can live inside simulations/, PFC-Tritium-Transport, or one level above it.
 """
 
 import os
@@ -158,6 +161,92 @@ def get_failed_jobs(logs_dir: Path):
     return failed
 
 
+def analyze_out_files(logs_dir: Path):
+    """Analyze all .out files in logs folder and report completion status."""
+    if not logs_dir.exists():
+        print("\n❌ logs folder not found")
+        return
+
+    log_files = sorted(logs_dir.glob("*.out"))
+    if not log_files:
+        print("\n❌ No .out files found in logs folder")
+        return
+
+    completed = []
+    failed = []
+    running = []
+    error_details = defaultdict(int)
+
+    for log_file in log_files:
+        try:
+            with open(log_file, 'r', errors='ignore') as f:
+                lines = f.readlines()
+
+            if not lines:
+                running.append(log_file.name)
+                continue
+
+            last_content = ''.join(lines[-100:])
+
+            if "✓ Simulation complete!" in last_content or "Simulation complete for bin" in last_content:
+                completed.append(log_file.name)
+            elif "Error" in last_content or "error" in last_content or "FAILED" in last_content or "Traceback" in last_content:
+                failed.append(log_file.name)
+                error_details["Error in stdout"] += 1
+            else:
+                err_file = log_file.parent / (log_file.stem + ".err")
+                if err_file.exists():
+                    is_crashed, crash_reason = detect_crash_in_err_file(err_file)
+                    if is_crashed:
+                        failed.append(log_file.name)
+                        error_details[crash_reason] += 1
+                    else:
+                        running.append(log_file.name)
+                else:
+                    running.append(log_file.name)
+        except Exception as e:
+            print(f"⚠️  Could not read {log_file.name}: {e}")
+
+    total = len(log_files)
+    print("\n" + "="*60)
+    print("SIMULATION STATUS SUMMARY")
+    print("="*60)
+    print(f"\nTotal log files: {total}")
+    print(f"{'─'*60}")
+
+    print(f"\n✓ COMPLETED: {len(completed)}/{total}")
+    if completed:
+        for name in completed[:5]:
+            print(f"    {name}")
+        if len(completed) > 5:
+            print(f"    ... and {len(completed)-5} more")
+
+    print(f"\n✗ FAILED/CRASHED: {len(failed)}/{total}")
+    if failed:
+        for name in failed[:5]:
+            print(f"    {name}")
+        if len(failed) > 5:
+            print(f"    ... and {len(failed)-5} more")
+    if error_details:
+        print(f"\n  Error breakdown:")
+        for error_type, count in sorted(error_details.items(), key=lambda x: -x[1]):
+            print(f"    - {error_type}: {count}")
+
+    print(f"\n⏳ RUNNING/INCOMPLETE: {len(running)}/{total}")
+    if running:
+        for name in running[:5]:
+            print(f"    {name}")
+        if len(running) > 5:
+            print(f"    ... and {len(running)-5} more")
+
+    print(f"\n{'─'*60}")
+    pct_complete = (len(completed) / total * 100) if total > 0 else 0
+    pct_failed   = (len(failed)    / total * 100) if total > 0 else 0
+    pct_running  = (len(running)   / total * 100) if total > 0 else 0
+    print(f"Progress: {pct_complete:.1f}% complete, {pct_failed:.1f}% failed, {pct_running:.1f}% running")
+    print("="*60 + "\n")
+
+
 def analyze_err_files(logs_dir: Path):
     """Analyze all .err files in logs folder and report progress."""
     
@@ -282,7 +371,8 @@ if __name__ == "__main__":
     input_dir = resolve_input_dir(args.input_folder, repo_root=_repo_root)
     logs_dir = Path(input_dir) / "logs"
 
-    print(f"Input folder : {input_dir}")
+    print(f"Input folder  : {input_dir}")
     print(f"Logs directory: {logs_dir}")
 
+    analyze_out_files(logs_dir)
     analyze_err_files(logs_dir)
