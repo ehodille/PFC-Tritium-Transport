@@ -157,7 +157,34 @@ class ImplantationCalculator:
         implantation_range = (a * complement + b) * (energy ** (c * complement + d))
         width = (aa * complement + bb) * (energy ** (cc * complement + dd))
 
-        reflection_coefficient = 0.6  # 60 % reflection for W
+                # --------------------------------------------------------------
+        # REFLECTION COEFFICIENT 
+        #   R(E,θ) = C(θ) * exp( -E / E0(θ) ) + R_inf(θ)
+        #
+        #   • Reflection decreases exponentially with energy because ions
+        #     penetrate more effectively at higher E (E0 acts like a 
+        #     characteristic "penetration threshold").
+        #   • R_inf(θ) is the asymptotic high‑energy reflection probability.
+        #   • Angular dependence arises because grazing incidence increases
+        #     the fraction of ions that skim the surface.
+        # --------------------------------------------------------------
+
+        # C(θ): quadratic polynomial in θ
+        Cθ = (1.18563425e-05 * angle**2
+            -3.59873804e-03 * angle
+            + 0.2794883505)
+
+        # R_inf(θ): quadratic
+        R_inf = (2.27921626e-05 * angle**2
+                + 3.91091848e-03 * angle
+                + 2.80846081e-01)
+
+        # E0(θ): quadratic
+        E0 = (0.395762077 * angle**2
+            - 5.25960886e+01* angle
+            + 2.79465408e+03)
+
+        reflection_coefficient = Cθ * np.exp(-energy / E0) + R_inf
 
         return {
             'implantation_range': float(implantation_range),
