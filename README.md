@@ -35,10 +35,7 @@ conda activate PFC-TT
 This step installs all core simulation dependencies, including:
 - **FESTIM v2.0-beta.2**
 - **FEniCS-DOLFINx v0.10.0** — finite element backend
-- **FEniCS-Basix v0.10.0**, **FFCx v0.10.1**, **UFL v2025.2.1** — FEniCSx components
 - **PETSc v3.24.5** + **petsc4py** — parallel linear algebra solvers
-- **MPICH v4.3.2** + **mpi4py** — MPI support for parallel runs
-- **HDF5 v1.14.6** — data I/O
 - **pandas, numpy, scipy, matplotlib, jupyterlab** — data analysis and visualisation
 
 ### 3. Install HISP and h_transport_materials
