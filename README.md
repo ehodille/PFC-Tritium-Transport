@@ -19,14 +19,18 @@ git clone --branch main https://github.com/iterorganization/PFC-Tritium-Transpor
 ```
 
 ### 2. Create the conda environment
+**Important:** Before creating the environment, ensure that your Conda configuration uses flexible channel priority, with strict channel priority, Conda cannot resolve the required setuptools version (needed by h_transport_materials).
+You can check and update your configuration with:
+```bash
+conda config --show channel_priority
+conda config --set channel_priority flexible
+```
 The `PFC-TT.yml` file included in this repository pins all required conda packages — including **FESTIM** and its heavy dependencies (FEniCSx, PETSc, MPI, etc.) — so that the solver resolves everything in a single pass.
 
 ```bash
 conda env create -f PFC-TT.yml
 conda activate PFC-TT
 ```
-
-> **Important:** FESTIM must be solved together with all other conda packages at environment-creation time. Installing it separately afterwards (e.g. `conda install festim`) will typically hang indefinitely because the solver cannot reconcile FESTIM's dependency tree with an already-locked environment.
 
 This step installs all core simulation dependencies, including:
 - **FESTIM v2.0-beta.2**
