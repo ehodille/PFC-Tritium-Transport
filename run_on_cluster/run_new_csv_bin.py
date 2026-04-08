@@ -174,39 +174,55 @@ csv_reactor = loader.load_reactor()
 print(f"Loaded {len(csv_reactor)} bins from CSV")
 print(csv_reactor.get_reactor_summary())
 
-# Make a plasma data handling object. Prefer scenario-provided instance if present.
-data_folder = "data"
+# Make a plasma data handling object — MUST come from the scenario file.
+# No silent fallback: if the scenario doesn't provide one (e.g. wrong data file
+# path), we abort immediately so the user knows.
 if scenario_plasma_data_handling is not None:
     plasma_data_handling = scenario_plasma_data_handling
     print("Using plasma_data_handling from scenario file")
-else:
-    plasma_data_handling = PlasmaDataHandling(
-        pulse_type_to_data={
-            "FP": pd.read_csv(data_folder + "/Binned_Flux_Data.dat", delimiter=","),
-            "FP_D": pd.read_csv(data_folder + "/Binned_Flux_Data_just_D_pulse.dat", delimiter=",", comment='#'),
-            "ICWC": pd.read_csv(data_folder + "/ICWC_data.dat", delimiter=","),
-            "GDC": pd.read_csv(data_folder + "/GDC_data.dat", delimiter=","),
-        },
-        path_to_ROSP_data=data_folder + "/ROSP_data",
-        path_to_RISP_data=data_folder + "/RISP_data",
-        path_to_RISP_wall_data=data_folder + "/RISP_Wall_data.dat",
-    )
 
-# Print which flux data files are referenced in the scenario source
-import re as _re
-scenario_file_path = os.path.join(scenario_folder, f"{scenario_name}.py")
-_pdh_source_file = scenario_file_path if scenario_plasma_data_handling is not None else __file__
-try:
-    with open(_pdh_source_file) as _fh:
-        _source = _fh.read()
-    # Find all quoted .dat file paths (e.g. "/Binned_Flux_Data_new.dat")
-    _dat_refs = _re.findall(r'["\']([^"\']*\.dat)["\']', _source)
-    if _dat_refs:
-        print("Flux / plasma data files (from scenario):")
-        for _p in _dat_refs:
-            print(f"  ← {_p}")
-except Exception:
-    pass
+    # Show which .dat files the scenario references (informational)
+    import re as _re
+    scenario_file_path = os.path.join(scenario_folder, f"{scenario_name}.py")
+    try:
+        with open(scenario_file_path) as _fh:
+            _source = _fh.read()
+        _dat_refs = _re.findall(r'["\']([^"\']*\.dat)["\']', _source)
+        if _dat_refs:
+            print("Plasma flux data files referenced in scenario:")
+            for _p in _dat_refs:
+                print(f"  ← {_p}")
+    except Exception:
+        pass
+else:
+    print("\n" + "=" * 60)
+    print("ERROR: plasma_data_handling not found in scenario file!")
+    print("=" * 60)
+    print(f"  Scenario: {scenario_folder}/{scenario_name}.py")
+    print()
+    print("This usually means one of:")
+    print("  1) The scenario file has a wrong path to a .dat flux data file")
+    print("     (e.g. data_folder points to a non-existent directory)")
+    print("  2) The scenario file does not define a 'plasma_data_handling' variable")
+    print()
+    print("Check the scenario file and ensure all pd.read_csv() paths are correct.")
+    print("=" * 60)
+    sys.exit(1)
+
+# Print the actual data paths loaded into the PlasmaDataHandling object
+print("Plasma data sources (actually loaded):")
+for _pt, _df in plasma_data_handling.pulse_type_to_data.items():
+    _src = getattr(_df, "attrs", {}).get("source", None)
+    if _src is None and hasattr(_df, "_metadata"):
+        _src = None  # pandas DataFrames don't remember their source path
+    print(f"  pulse_type={_pt!r}: DataFrame with {len(_df)} rows, {len(_df.columns)} columns")
+for _attr in ("path_to_RISP_data", "path_to_ROSP_data", "path_to_RISP_wall_data"):
+    _val = getattr(plasma_data_handling, _attr, None)
+    if _val is not None:
+        _exists = os.path.exists(_val)
+        print(f"  {_attr}: {os.path.abspath(_val)} (exists={_exists})")
+    else:
+        print(f"  {_attr}: not set")
 
 
 def compute_and_attach_implantation_params(bin, scenario, plasma_data_handling, use_physics_model=False):
