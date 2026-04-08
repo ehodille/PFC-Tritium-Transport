@@ -192,6 +192,21 @@ else:
         path_to_RISP_wall_data=data_folder + "/RISP_Wall_data.dat",
     )
 
+# Print which flux data files are referenced in the scenario source
+import re as _re
+_pdh_source_file = scenario_file_path if scenario_plasma_data_handling is not None else __file__
+try:
+    with open(_pdh_source_file) as _fh:
+        _source = _fh.read()
+    # Find all quoted .dat file paths (e.g. "/Binned_Flux_Data_new.dat")
+    _dat_refs = _re.findall(r'["\']([^"\']*\.dat)["\']', _source)
+    if _dat_refs:
+        print("Flux / plasma data files (from scenario):")
+        for _p in _dat_refs:
+            print(f"  ← {_p}")
+except Exception:
+    pass
+
 
 def compute_and_attach_implantation_params(bin, scenario, plasma_data_handling, use_physics_model=False):
     """
