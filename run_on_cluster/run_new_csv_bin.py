@@ -194,6 +194,7 @@ else:
 
 # Print which flux data files are referenced in the scenario source
 import re as _re
+scenario_file_path = os.path.join(scenario_folder, f"{scenario_name}.py")
 _pdh_source_file = scenario_file_path if scenario_plasma_data_handling is not None else __file__
 try:
     with open(_pdh_source_file) as _fh:
