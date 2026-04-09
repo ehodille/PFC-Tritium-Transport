@@ -153,9 +153,8 @@ class ImplantationCalculator:
         cc = 2.378e-4
         dd = 6.342e-1
 
-        complement = 90.0 - angle
-        implantation_range = (a * complement + b) * (energy ** (c * complement + d))
-        width = (aa * complement + bb) * (energy ** (cc * complement + dd))
+        implantation_range = (a * angle + b) * (energy ** (c * angle + d))
+        width = (aa * angle + bb) * (energy ** (cc * angle + dd))
 
                 # --------------------------------------------------------------
         # REFLECTION COEFFICIENT 
