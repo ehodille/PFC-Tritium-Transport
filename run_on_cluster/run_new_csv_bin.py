@@ -85,6 +85,12 @@ print(f"Loading scenario: {scenario_name} from {scenario_folder}")
 scenario = load_scenario_variable(scenario_folder, scenario_name)
 scenario_plasma_data_handling = load_scenario_variable(scenario_folder, scenario_name, variable_name="plasma_data_handling")
 
+# Debug: log baking temperature so it appears in SLURM .out files
+_baking_temp_val = getattr(scenario, 'baking_temp', 'MISSING')
+print(f"[DEBUG] scenario.baking_temp = {_baking_temp_val} K")
+for i, p in enumerate(scenario.pulses):
+    print(f"[DEBUG]   pulse[{i}] type={p.pulse_type}  duration={p.total_duration}s")
+
 
 def _normalize_material_name(name):
     if not isinstance(name, str):

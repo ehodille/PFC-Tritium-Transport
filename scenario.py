@@ -59,15 +59,24 @@ class Pulse:
 
 
 class Scenario:
-    def __init__(self, pulses: List[Pulse] = None, baking_temp: float = 483.15):
+    def __init__(self, pulses: List[Pulse] = None, baking_temp: float = None):
         """Initializes a Scenario object containing several pulses.
 
         Args:
             pulses: The list of pulses in the scenario. Each pulse is a Pulse object.
-            baking_temp: Temperature (K) during baking pulses. Default 483.15 K (210 °C).
+            baking_temp: Temperature (K) during baking pulses. Required if any
+                pulse has pulse_type="BAKE".
         """
         self._pulses = pulses if pulses is not None else []
         self.baking_temp = baking_temp
+
+        # Validate: if there are BAKE pulses, baking_temp must be set
+        has_bake = any(p.pulse_type == "BAKE" for p in self._pulses)
+        if has_bake and self.baking_temp is None:
+            raise ValueError(
+                "Scenario contains BAKE pulses but baking_temp was not set. "
+                "Pass baking_temp=<value_in_K> to Scenario()."
+            )
 
     @property
     def pulses(self) -> List[Pulse]:
@@ -141,7 +150,7 @@ class Scenario:
         if "baking_temp" in df.columns:
             baking_temp = float(df["baking_temp"].iloc[0])
         else:
-            baking_temp = 483.15  # default
+            baking_temp = None  # will be validated in Scenario.__init__
         return Scenario(pulses, baking_temp=baking_temp)
 
     def get_row(self, t: float) -> int:
