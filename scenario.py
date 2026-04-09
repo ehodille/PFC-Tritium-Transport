@@ -59,13 +59,15 @@ class Pulse:
 
 
 class Scenario:
-    def __init__(self, pulses: List[Pulse] = None):
+    def __init__(self, pulses: List[Pulse] = None, baking_temp: float = 483.15):
         """Initializes a Scenario object containing several pulses.
 
         Args:
             pulses: The list of pulses in the scenario. Each pulse is a Pulse object.
+            baking_temp: Temperature (K) during baking pulses. Default 483.15 K (210 °C).
         """
         self._pulses = pulses if pulses is not None else []
+        self.baking_temp = baking_temp
 
     @property
     def pulses(self) -> List[Pulse]:
@@ -84,6 +86,7 @@ class Scenario:
                     "tritium_fraction": pulse.tritium_fraction,
                     "heat_scaling": pulse.heat_scaling,
                     "flux_scaling": pulse.flux_scaling,
+                    "baking_temp": self.baking_temp,
                 }
                 for pulse in self.pulses
             ]
@@ -134,7 +137,12 @@ class Scenario:
             )
             for _, row in df.iterrows()
         ]
-        return Scenario(pulses)
+        # Read baking_temp from CSV if present as a column (same value in all rows)
+        if "baking_temp" in df.columns:
+            baking_temp = float(df["baking_temp"].iloc[0])
+        else:
+            baking_temp = 483.15  # default
+        return Scenario(pulses, baking_temp=baking_temp)
 
     def get_row(self, t: float) -> int:
         """
