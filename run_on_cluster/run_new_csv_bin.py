@@ -1,5 +1,6 @@
-import os
 import sys
+sys.dont_write_bytecode = True  # prevent __pycache__ creation
+import os
 import json
 import pandas as pd
 import numpy as np

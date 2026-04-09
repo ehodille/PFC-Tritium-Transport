@@ -26,6 +26,7 @@ export PATH="/home/ITER/llealsa/miniconda3/envs/PFC-TT/bin:$PATH"
 
 unset PYTHONPATH
 export PYTHONNOUSERSITE=1
+export PYTHONDONTWRITEBYTECODE=1  # prevent __pycache__ creation
 
 module unload SciPy-bundle        2>/dev/null
 module unload Python-bundle-PyPI  2>/dev/null
