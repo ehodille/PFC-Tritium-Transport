@@ -11,7 +11,7 @@ Migrated from hisp package to PFC-Tritium-Transport for better separation of con
 
 import numpy as np
 from numpy.typing import NDArray
-from .helpers import periodic_step_function, periodic_pulse_function
+from .helpers import periodic_step_function, periodic_pulse_function, periodic_pulse_cplx_function
 from scenario import Pulse
 import pandas as pd
 
@@ -110,7 +110,7 @@ class PlasmaDataHandling:
         total_time_on = pulse.duration_no_waiting
         total_time_pulse = pulse.total_duration
 
-        return periodic_pulse_function(
+        return periodic_pulse_cplx_function(
             t_rel,
             pulse=pulse,
             value=value,
@@ -268,7 +268,7 @@ class PlasmaDataHandling:
         total_time_on = pulse.duration_no_waiting
         total_time_pulse = pulse.total_duration
 
-        return periodic_pulse_function(
+        return periodic_pulse_cplx_function(
             t_rel,
             pulse=pulse,
             value=heat_val,
