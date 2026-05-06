@@ -5,52 +5,137 @@ import warnings
 
 class Pulse:
     pulse_type: str
+    pulse_def: str
     nb_pulses: int
     ramp_up: float
     steady_state: float
     ramp_down: float
     waiting: float
+    timing: List[float]
+    fraction: List[float]
+    steady_STATE: List[float]
+    tritium_fraction: float
+    heat_scaling: float
+    flux_scaling: float
 
     def __init__(
         self,
         pulse_type: str,
         nb_pulses: int,
-        ramp_up: float,
-        steady_state: float,
-        ramp_down: float,
-        waiting: float,
-        tritium_fraction: float,  # tritium fraction = T/D
+        ramp_up: float = 0,
+        steady_state: float = 0 ,
+        ramp_down: float = 0,
+        waiting: float = 0,
+        tritium_fraction: float = 0.5,  # tritium fraction = T/D
+        transition: List[float] = [],
+        steady_STATE: List[float] = [],
+        fraction: List[float] = [],
+        timing: List[float] = [],
+        pulse_def: str = 'classic',
         heat_scaling: float = 1.0,  # scaling factor for heat loads
         flux_scaling: float = 1.0,  # scaling factor for particle fluxes
     ):
         self.pulse_type = pulse_type
         self.nb_pulses = nb_pulses
-        self.ramp_up = ramp_up
-        self.steady_state = steady_state
-        self.ramp_down = ramp_down
-        self.waiting = waiting
+        self.pulse_def = pulse_def
+        if self.pulse_def == 'classic':
+            self.ramp_up = ramp_up
+            self.steady_state = steady_state
+            self.ramp_down = ramp_down
+            self.waiting = waiting
+            self.transition = []
+            self.timing = []
+            self.fraction = []
+            self.steady_STATE = []
+        elif self.pulse_def == 'steps':
+            self.steady_STATE = steady_STATE
+            if len(transition) == len(steady_STATE)+1:
+                self.transition = transition
+                self.ramp_up = transition[0]             # first value of transition
+                self.ramp_down = transition[-1]          # last value of transition
+                self.steady_state = sum(steady_STATE)+sum(transition[1:-1])
+            else:
+                print('ERROR: len(transition) != len(steady_STATE)+1')
+                sys.exit('exiting ...')
+            if len(fraction) == len(steady_STATE):
+                self.fraction = fraction
+            else:
+                print('ERROR: len(fraction) != len(steady_STATE)')
+                sys.exit('exiting ...')
+            self.waiting = waiting
+        elif self.pulse_def == 'timing':
+            timing.sort()
+            if len(timing) <= 2:
+                print('ERROR: len(timing) <= 2')
+                print('please use len(timing) >= 3')
+                sys.exit('exiting ...')
+            else:
+                self.timing = timing
+            if len(fraction) != len(timing):
+                print('ERROR: len(fraction) != len(timing)')
+                sys.exit('exiting ...')
+            else:
+                self.fraction = fraction
+            self.ramp_up = self.timing[1] - self.timing[0]
+            self.waiting = self.timing[-1] - self.timing[-2]
+            self.ramp_down = self.timing[-2] - self.timing[-3]
+            self.steady_state = self.timing[-3] - self.timing[1]
         self.tritium_fraction = tritium_fraction
         self.heat_scaling = heat_scaling
         self.flux_scaling = flux_scaling
 
     @property
     def total_duration(self) -> float:
-        all_zeros = (
-            self.ramp_up == 0
-            and self.steady_state == 0
-            and self.ramp_down == 0
-            and self.waiting == 0
-        )
+        if self.pulse_def == 'classic':
+            all_zeros = (
+                self.ramp_up == 0
+                and self.steady_state == 0
+                and self.ramp_down == 0
+                and self.waiting == 0
+            )
+        elif self.pulse_def == 'steps':
+            all_zeros = (
+                    sum(self.transition) == 0
+                    and sum(self.steady_STATE) == 0
+                    and self.waiting == 0
+                    )
+        elif self.pulse_def == 'timing':
+            all_zeros = (
+                    self.timing[-1] == 0
+                    )
         if self.pulse_type == "RISP" and all_zeros:
             msg = "RISP pulse has all zeros for ramp_up, steady_state, ramp_down, waiting. "
             msg += "Setting hardcoded values. Please check the values in the scenario file."
             warnings.warn(msg, UserWarning)
-
+            self.pulse_def = 'classic'
             self.ramp_up = 10
             self.steady_state = 250
             self.ramp_down = 10
             self.waiting = 1530
-
+            self.transition = []
+            self.timing = []
+            self.fraction = []
+            self.steady_STATE = []
+        elif all_zeros:
+            msg = "pulse has all zeros for ramp_up, steady_state, ramp_down, waiting. "
+            msg += "Setting hardcoded values. Please check the values in the scenario file."
+            warnings.warn(msg, UserWarning)
+            self.pulse_def = 'classic'
+            self.ramp_up = 10
+            self.steady_state = 250
+            self.ramp_down = 10
+            self.waiting = 1530
+            self.transition = []
+            self.timing = []
+            self.fraction = []
+            self.steady_STATE = []
+        else:
+            if self.pulse_def == 'classic':
+                tot = self.ramp_up + self.steady_state + self.ramp_down + self.waiting
+            elif self.pulse_def == 'steps':
+                tot = sum(self.transition) + sum(self.steady_STATE) + self.waiting
+            elif self.pulse_def == 'timing':
+                tot = self.timing[-1] - self.timing[0]
         return self.ramp_up + self.steady_state + self.ramp_down + self.waiting
 
     @property
@@ -123,6 +208,7 @@ class Scenario:
                     pulses.append(
                         Pulse(
                             pulse_type=pulse_type,
+                            pulse_def = 'classic',
                             nb_pulses=int(nb_pulses),
                             ramp_up=float(ramp_up),
                             steady_state=float(steady_state),
@@ -135,6 +221,7 @@ class Scenario:
         pulses = [
             Pulse(
                 pulse_type=row["pulse_type"],
+                pulse_def = 'classic',
                 nb_pulses=int(row["nb_pulses"]),
                 ramp_up=float(row["ramp_up"]),
                 steady_state=float(row["steady_state"]),
