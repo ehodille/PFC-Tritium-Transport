@@ -38,7 +38,19 @@ This step installs all core simulation dependencies, including:
 - **PETSc v3.24.5** + **petsc4py** — parallel linear algebra solvers
 - **pandas, numpy, scipy, matplotlib, jupyterlab** — data analysis and visualisation
 
-### 3. Install HISP and h_transport_materials
+### 3. Register the PFC-TT path
+HISP imports bin definitions, material classes, and scenario handling directly from this repository at runtime. For this to work, HISP needs to know where PFC-Tritium-Transport is located on your system. Register the path once in your conda environment (replace with your actual clone location):
+```bash
+conda env config vars set PFC_TT_PATH="/path/to/your/PFC-Tritium-Transport"
+conda deactivate && conda activate PFC-TT
+```
+
+You can verify it was set correctly with:
+```bash
+conda env config vars list
+```
+
+### 4. Install HISP and h_transport_materials
 We use a specific branch of HISP which will remain static until significant improvements are made.
 To avoid FESTIM version conflicts, we install HISP **without dependencies**:
 ```bash

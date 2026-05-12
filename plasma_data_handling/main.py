@@ -93,6 +93,9 @@ class PlasmaDataHandling:
                     flux = flux.values[0]
         elif pulse.pulse_type == "BAKE":
             flux = 0.0
+        elif pulse.pulse_type == "Bake+GDC":
+            # Bake+GDC: temperature follows baking profile, but flux comes from GDC data
+            flux = self.pulse_type_to_data["GDC"][flux_header][bin_index]
         else:
             flux = self.pulse_type_to_data[pulse.pulse_type][flux_header][bin_index]
 
@@ -105,6 +108,24 @@ class PlasmaDataHandling:
         assert isinstance(
             value, (float, np.float64)
         ), f"value should be a float, not {type(value)}"
+
+        # For Bake+GDC: use GDC sub-timing for the flux ramp profile
+        if pulse.pulse_type == "Bake+GDC":
+            gdc_sub = Pulse(
+                pulse_type="_GDC_sub",
+                nb_pulses=1,
+                ramp_up=pulse.gdc_ramp_up,
+                steady_state=pulse.gdc_steady_state,
+                ramp_down=pulse.gdc_ramp_down,
+                waiting=pulse.total_duration - (pulse.gdc_ramp_up + pulse.gdc_steady_state + pulse.gdc_ramp_down),
+                tritium_fraction=pulse.tritium_fraction,
+            )
+            return periodic_pulse_function(
+                t_rel,
+                pulse=gdc_sub,
+                value=value,
+                value_off=0,
+            )
 
         # add in the step function for the pulse
         total_time_on = pulse.duration_no_waiting
@@ -221,6 +242,9 @@ class PlasmaDataHandling:
         if pulse.pulse_type == "RISP":
             t_rel_within_a_single_risp = t_rel % pulse.total_duration
             data = self.RISP_data(bin, t_rel=t_rel_within_a_single_risp)
+        elif pulse.pulse_type == "Bake+GDC":
+            # Bake+GDC: no heat loads — temperature comes from baking profile
+            return 0.0
         elif pulse.pulse_type in self.pulse_type_to_data.keys():
             data = self.pulse_type_to_data[pulse.pulse_type]
         else:

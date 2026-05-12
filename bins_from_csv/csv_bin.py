@@ -230,7 +230,9 @@ class Bin:
             if pulse_type is None:
                 return {'energy': energy, 'angle': angle}
             
-            pulse_data = plasma_data_handling.pulse_type_to_data.get(pulse_type)
+            # For Bake+GDC pulses, flux data comes from the GDC table
+            data_key = "GDC" if pulse_type == "Bake+GDC" else pulse_type
+            pulse_data = plasma_data_handling.pulse_type_to_data.get(data_key)
             if pulse_data is None:
                 return {'energy': energy, 'angle': angle}
             

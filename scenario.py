@@ -22,6 +22,9 @@ class Pulse:
         tritium_fraction: float,  # tritium fraction = T/D
         heat_scaling: float = 1.0,  # scaling factor for heat loads
         flux_scaling: float = 1.0,  # scaling factor for particle fluxes
+        gdc_ramp_up: float = None,  # GDC sub-pulse ramp-up (for Bake+GDC)
+        gdc_steady_state: float = None,  # GDC sub-pulse steady-state (for Bake+GDC)
+        gdc_ramp_down: float = None,  # GDC sub-pulse ramp-down (for Bake+GDC)
     ):
         self.pulse_type = pulse_type
         self.nb_pulses = nb_pulses
@@ -32,6 +35,24 @@ class Pulse:
         self.tritium_fraction = tritium_fraction
         self.heat_scaling = heat_scaling
         self.flux_scaling = flux_scaling
+        self.gdc_ramp_up = gdc_ramp_up
+        self.gdc_steady_state = gdc_steady_state
+        self.gdc_ramp_down = gdc_ramp_down
+
+        # Validate Bake+GDC has sub-timing defined
+        if pulse_type == "Bake+GDC":
+            if any(v is None for v in (gdc_ramp_up, gdc_steady_state, gdc_ramp_down)):
+                raise ValueError(
+                    "Bake+GDC pulse requires gdc_ramp_up, gdc_steady_state, "
+                    "and gdc_ramp_down to be set."
+                )
+            gdc_total = gdc_ramp_up + gdc_steady_state + gdc_ramp_down
+            bake_active = ramp_up + steady_state + ramp_down
+            if gdc_total > bake_active:
+                raise ValueError(
+                    f"GDC sub-pulse duration ({gdc_total}s) exceeds "
+                    f"baking active duration ({bake_active}s)."
+                )
 
     @property
     def total_duration(self) -> float:
@@ -70,11 +91,11 @@ class Scenario:
         self._pulses = pulses if pulses is not None else []
         self.baking_temp = baking_temp
 
-        # Validate: if there are BAKE pulses, baking_temp must be set
-        has_bake = any(p.pulse_type == "BAKE" for p in self._pulses)
+        # Validate: if there are BAKE or Bake+GDC pulses, baking_temp must be set
+        has_bake = any(p.pulse_type in ("BAKE", "Bake+GDC") for p in self._pulses)
         if has_bake and self.baking_temp is None:
             raise ValueError(
-                "Scenario contains BAKE pulses but baking_temp was not set. "
+                "Scenario contains BAKE/Bake+GDC pulses but baking_temp was not set. "
                 "Pass baking_temp=<value_in_K> to Scenario()."
             )
 
@@ -96,6 +117,9 @@ class Scenario:
                     "heat_scaling": pulse.heat_scaling,
                     "flux_scaling": pulse.flux_scaling,
                     "baking_temp": self.baking_temp,
+                    "gdc_ramp_up": pulse.gdc_ramp_up,
+                    "gdc_steady_state": pulse.gdc_steady_state,
+                    "gdc_ramp_down": pulse.gdc_ramp_down,
                 }
                 for pulse in self.pulses
             ]
@@ -143,6 +167,9 @@ class Scenario:
                 tritium_fraction=float(row["tritium_fraction"]),
                 heat_scaling=float(row.get("heat_scaling", 1.0)),
                 flux_scaling=float(row.get("flux_scaling", 1.0)),
+                gdc_ramp_up=float(row["gdc_ramp_up"]) if "gdc_ramp_up" in row and pd.notna(row.get("gdc_ramp_up")) else None,
+                gdc_steady_state=float(row["gdc_steady_state"]) if "gdc_steady_state" in row and pd.notna(row.get("gdc_steady_state")) else None,
+                gdc_ramp_down=float(row["gdc_ramp_down"]) if "gdc_ramp_down" in row and pd.notna(row.get("gdc_ramp_down")) else None,
             )
             for _, row in df.iterrows()
         ]

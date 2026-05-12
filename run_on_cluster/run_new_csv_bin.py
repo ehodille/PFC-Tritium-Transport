@@ -268,6 +268,19 @@ def compute_and_attach_implantation_params(bin, scenario, plasma_data_handling, 
                 energy_atom = implant_data_atom.get('energy')
                 angle_atom = implant_data_atom.get('angle')
                 break
+        
+        # If no FP pulse found, try GDC or Bake+GDC pulses
+        if energy_ion is None and energy_atom is None:
+            for pulse in scenario.pulses:
+                if pulse.pulse_type in ("GDC", "Bake+GDC"):
+                    implant_data_ion = bin.get_implantation_data(pulse, plasma_data_handling, ion=True)
+                    energy_ion = implant_data_ion.get('energy')
+                    angle_ion = implant_data_ion.get('angle')
+                    
+                    implant_data_atom = bin.get_implantation_data(pulse, plasma_data_handling, ion=False)
+                    energy_atom = implant_data_atom.get('energy')
+                    angle_atom = implant_data_atom.get('angle')
+                    break
     
     # Compute parameters for ions and atoms
     params_ion = calculator.compute_implantation_params(
