@@ -7,7 +7,6 @@ and process pulse profiles for FESTIM simulations.
 
 from scenario import Pulse
 
-
 def periodic_pulse_function(current_time: float, pulse: Pulse, value, value_off=343.0):
     """Creates bake function with ramp up rate and ramp down rate.
 
@@ -17,19 +16,42 @@ def periodic_pulse_function(current_time: float, pulse: Pulse, value, value_off=
         value (float): steady-state value 
         value_off (float): value at t=0 and t=final time. 
     """
-    
-    if current_time == pulse.total_duration:
-        return value_off
-    elif current_time % pulse.total_duration < pulse.ramp_up:  # ramp up 
-        return (value - value_off) / (pulse.ramp_up) * current_time + value_off  # y = mx + b, slope is temp/ramp up time
-    elif current_time % pulse.total_duration < pulse.ramp_up + pulse.steady_state:  # steady state
-        return value
-    else:  # ramp down, waiting
-        lower_value = value - (value - value_off)/pulse.ramp_down * (current_time - (pulse.ramp_up + pulse.steady_state))  # y = mx + b, slope is temp/ramp down time
-        if lower_value >= value_off: 
-            return lower_value
-        else: 
+
+    if pulse.pulse_def == 'classic':
+        if current_time == pulse.total_duration:
             return value_off
+        elif current_time % pulse.total_duration < pulse.ramp_up:  # ramp up 
+            return (value - value_off) / (pulse.ramp_up) * current_time + value_off  # y = mx + b, slope is temp/ramp up time
+        elif current_time % pulse.total_duration < pulse.ramp_up + pulse.steady_state:  # steady state
+            return value
+        else:  # ramp down, waiting
+            lower_value = value - (value - value_off)/pulse.ramp_down * (current_time - (pulse.ramp_up + pulse.steady_state))  # y = mx + b, slope is temp/ramp down time
+            if lower_value >= value_off: 
+                return lower_value
+            else: 
+                return value_off
+    elif pulse.pulse_def == 'steps':
+        time_prev = 0
+        value_prev = value_off
+        for r in range(len(pulse.steady_STATE)):
+            if time_prev <= current_time < time_prev + pulse.transition[r]:
+                return (value * pulse.fraction[r] - value_prev) / pulse.transition[r] * (current_time - time_prev) + value_prev
+            elif time_prev + pulse.transition[r] <= current_time < time_prev + pulse.transition[r] + pulse.steady_STATE[r]:
+                return value * pulse.fraction[r]
+            value_prev = value * pulse.fraction[r]
+            time_prev += pulse.transition[r] + pulse.steady_STATE[r]
+        if time_prev <= current_time <= time_prev + pulse.transition[-1]:
+            return (value_off - value_prev) / pulse.transition[-1] * (current_time - time_prev) + value_prev
+        if current_time >= pulse.duration_no_waiting:
+            return value_off
+        if current_time == pulse.total_duration:
+            return value_off
+    elif pulse.pulse_def == 'timing':
+        if current_time == pulse.timing[0]:
+            return value * pulse.fraction[0]
+        for r in range(len(pulse.timing)-1):
+            if pulse.timing[r] < current_time <= pulse.timing[r+1]:
+                return value * (pulse.fraction[r+1] - pulse.fraction[r]) / (pulse.timing[r+1] - pulse.timing[r]) * (current_time - pulse.timing[r]) + pulse.fraction[r] * value
 
 
 def periodic_step_function(x, period_on, period_total, value, value_off=0.0):

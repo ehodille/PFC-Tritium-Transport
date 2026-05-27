@@ -25,9 +25,9 @@ class PlasmaDataHandling:
     def __init__(
         self,
         pulse_type_to_data: Dict[str, pd.DataFrame],
-        path_to_RISP_data: str,
-        path_to_ROSP_data: str,
-        path_to_RISP_wall_data: str,
+        path_to_RISP_data: str='None',
+        path_to_ROSP_data: str='None',
+        path_to_RISP_wall_data: str='None',
     ):
         self.pulse_type_to_data = pulse_type_to_data or {}
         self.path_to_RISP_data = path_to_RISP_data
