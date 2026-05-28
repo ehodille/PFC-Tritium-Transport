@@ -1,0 +1,17 @@
+Material_name,W,,Material_name,W_hightraps
+Mat_density,6.3382E+028,,Mat_density,6.3382E+028
+D0,2.06E-07,,D0,2.06E-07
+E_D,0.28,,E_D,0.28
+K_R,7.94E-17,,K_R,7.94E-17
+E_R,-2,,E_R,-2
+N_traps,2,,N_traps,2
+Trap_density,0.0001,,Trap_density,0.0005
+k_0,3.58E-16,,k_0,3.58E-16
+E_k,0.28,,E_k,0.28
+p_0,1.00E+13,,p_0,1.00E+13
+E_p,0.85,,E_p,0.85
+Trap_density,0.0001,,Trap_density,0.0005
+k_0,3.58E-16,,k_0,3.58E-16
+E_k,0.28,,E_k,0.28
+p_0,1.00E+13,,p_0,1.00E+13
+E_p,1.0,,E_p,1.0

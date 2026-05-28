@@ -1,0 +1,4 @@
+Sim. ID,Bin number,Z_start (m),R_start (m),Z_end (m),R_end (m),Material,Thickness (m),Cu thickness (m),mode,S. Area parent bin (m^2),Surface area (m^2),f (ion flux scaling factor),location,rtol,atol,FP max. stepsize (s),Max. stepsize no FP (s),BC Plasma Facing Surface,BC rear surface,Calculate Implantation Parameters
+1,0,-1.5,4.1,0.5,4.1,W,0.006,0.002,wetted,26.0,2.2,0.88,FW,1E-12,1E9,1000,10000,Robin - Surf. Rec. + Implantation,Neumann - no flux,Yes
+2,1,0.5,4.1,2.5,4.2,W,0.006,0.002,wetted,26.0,3.5,0.95,FW,1E-12,1E9,1000,10000,Dirichlet - Analyttical implantation approximation,Neumann - no flux,Yes
+3,2,-2.5,4.1,-1.5,4.1,W,0.006,0.002,shadowed,26.0,20.3,0.0,FW,1E-12,1E9,1000,10000,Robin - Surf. Rec. + Implantation,Dirichlet - 0 concentration,No
