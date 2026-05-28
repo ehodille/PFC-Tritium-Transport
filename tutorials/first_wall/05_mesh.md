@@ -26,8 +26,10 @@ The tutorial uses two mesh strategies depending on the plasma-facing BC:
 
 | BC (plasma face) | Mesh type | `h0` | `r` | Rationale |
 |-----------------|-----------|------|-----|-----------|
-| Dirichlet (analytical) | one-sided graded | 1 × 10⁻⁸ m | 1.03 | concentration prescribed at x=0; only surface resolution matters |
-| Robin (surf. rec.) | symmetric graded | 1 × 10⁻⁸ m | 1.03 | flux-based BC active at both surfaces; refine at x=0 and x=L |
+| Dirichlet (analytical) | one-sided graded | 1 × 10⁻⁸ m | 1.02 | concentration prescribed at x=0; only surface resolution matters |
+| Robin (surf. rec.) | symmetric graded | 1 × 10⁻¹⁰ m | 1.01 | flux-based BC active at both surfaces; refine at x=0 and x=L |
+
+> The Robin (surface recombination + implantation) BC resolves both the implanted particle source and the recombination flux at x=0, requiring a finer mesh near the plasma-facing surface than the Dirichlet case.
 
 ## Key snippet from `mesh.py`
 
