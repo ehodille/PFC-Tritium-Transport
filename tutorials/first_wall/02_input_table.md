@@ -30,14 +30,17 @@ The shadowed bin has f = 0 → no particle flux regardless of plasma data.
 **Shadowed bin (bin 2):**
 - `f = 0.0` zeroes the particle flux; only heat load and diffusion matter.
 - `Calculate Implantation Parameters = No` — no flux data to compute from.
-- Larger solver stepsize (`FP max. stepsize = 100 s`, `Max. stepsize no FP = 5000 s`) since the problem is simpler.
+- Uses `Dirichlet - 0 concentration` at the rear surface, making it a simple permeation test case alongside the retention study.
 
 ## Key column values
 
 ```
 Thickness (m)    = 0.006   → 6 mm W armour
 Cu thickness (m) = 0.002   → 2 mm Cu heat sink (used by thermal model)
-rtol, atol       = 1E-08   → tight tolerances for accurate inventory
+rtol             = 1E-12   → tight relative tolerance
+atol             = 1E9     → absolute tolerance in atoms/m³
+FP max. stepsize = 1000 s  → maximum solver step during plasma pulses
+Max. stepsize no FP = 10000 s → maximum step outside plasma pulses
 location         = FW      → used by post-processing scripts
 ```
 
@@ -52,24 +55,24 @@ The two most common choices are:
 | BC option | Physical meaning | Use case |
 |-----------|-----------------|----------|
 | `Neumann - no flux` | Zero permeation flux — tritium cannot leave through the rear | Default for armour tiles backed by Cu/CuCrZr (coolant barrier); gives **inventory** as the output of interest |
-| `Dirichlet - 0 concentration` | Concentration fixed at zero at the rear — tritium that reaches the back is immediately removed | Models a perfectly absorbing substrate or a vacuum side; gives **permeation flux** as the output of interest |
-| `Robin - Surface Recombination` | Recombination-limited release at the rear surface | Models a metallic rear surface where molecules must recombine before release; intermediate between the two above |
+| `Dirichlet - 0 concentration` | Concentration fixed at zero at the rear — tritium that reaches the back is immediately removed | Models a perfectly absorbing substrate or a vacuum side; gives **inventory** as well as **permeation flux** as the output of interest |
+| `Robin - Surface Recombination` | Recombination-limited release at the rear surface | Models a metallic rear surface where molecules must recombine before release; intermediate between the two above, also valid for both **inventory** and **permeation** studies|
 
 For a permeation study (e.g. measuring tritium breakthrough into a coolant channel):
 
 ```
-BC Plasma Facing Surface = Robin - Surf. Rec. + Implantation
-BC rear surface          = Dirichlet - 0 concentration
+BC Plasma Facing Surface = Robin - Surf. Rec. + Implantation ; Dirichlet - Analyttical implantation approximation
+BC rear surface          = Dirichlet - 0 concentration ; Robin - Surface Recombination
 ```
 
 The time-dependent permeation flux at the rear is then available in the output JSON
 as the gradient of the concentration at x = L. Compare this to the implanted flux
 to quantify the permeation fraction.
 
-> In the tutorial `FW_example`, bin 2 (shadowed) uses `Neumann - no flux` since
-> there is negligible incoming flux and retention is the quantity of interest.
-> Bin 2 is a good candidate to change to `Dirichlet - 0 concentration` to see
-> the effect of the rear BC on a low-flux case without long runtimes.
+> In the tutorial `FW_example`, bins 0 and 1 (wetted) use `Neumann - no flux` at the rear,
+> so retention is the output of interest. Bin 2 (shadowed, `f=0`) uses `Dirichlet - 0 concentration`
+> at the rear — a low-cost permeation test case since the negligible incoming flux keeps
+> runtimes short while demonstrating the BC.
 
 ---
 

@@ -22,25 +22,24 @@ The first element has size `h0`; each subsequent element is `r` times larger.
 
 ## Tutorial mesh parameters
 
-```python
-graded_vertices(L=bin.thickness, h0=5e-10, r=1.03)
-```
+The tutorial uses two mesh strategies depending on the plasma-facing BC:
 
-| Parameter | Value | Rationale |
-|-----------|-------|-----------|
-| `L` | 6 mm (from `input_table.csv`) | full W layer |
-| `h0` | 5 × 10⁻¹⁰ m (0.5 nm) | resolves the ~3 nm implantation range |
-| `r` | 1.03 | gentle growth; ~130 nodes across 6 mm |
-
-If a bin's `sim_id` is not in `BINS_MESHES`, HISP generates a default mesh
-with `h0=1e-10, r=1.05`. The explicit definition here gives slightly coarser
-but sufficient resolution with faster runtime.
+| BC (plasma face) | Mesh type | `h0` | `r` | Rationale |
+|-----------------|-----------|------|-----|-----------|
+| Dirichlet (analytical) | one-sided graded | 1 × 10⁻⁸ m | 1.03 | concentration prescribed at x=0; only surface resolution matters |
+| Robin (surf. rec.) | symmetric graded | 1 × 10⁻⁸ m | 1.03 | flux-based BC active at both surfaces; refine at x=0 and x=L |
 
 ## Key snippet from `mesh.py`
 
 ```python
 for _bin in _reactor.bins:
-    _mesh = graded_vertices(L=_bin.thickness, h0=5e-10, r=1.03)
+    _bc_plasma = _bin.bin_configuration.bc_plasma_facing_surface
+    if "Dirichlet" in _bc_plasma:
+        # Concentration prescribed at x=0 — refine only at the surface
+        _mesh = graded_vertices(L=_bin.thickness, h0=1e-8, r=1.03)
+    else:
+        # Robin BC — flux condition at both surfaces; refine at both ends
+        _mesh = symmetric_graded_vertices(L=_bin.thickness, h0=1e-8, r=1.03)
     BINS_MESHES[_bin.sim_id] = MeshBin(sim_id=_bin.sim_id, mesh=_mesh)
 ```
 
