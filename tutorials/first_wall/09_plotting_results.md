@@ -83,7 +83,7 @@ Two subplots sharing the time axis:
   - Mobile T concentration on an independent right y-axis (gray, thin dashed)
 - **Bottom** — plasma-facing surface temperature (K)
 
-![Inventory plot](FW_example/plots/sim_1/sim_1_flux_0_w_wetted_inventory.png)
+<img width="1781" height="880" alt="sim_1_flux_0_w_wetted_inventory" src="https://github.com/user-attachments/assets/51d43219-27d9-46cc-8f7b-9b62d3306b5c" />
 
 ---
 
@@ -97,7 +97,7 @@ Same as above but with a third subplot:
   - Instantaneous flux in atoms/m²/s (left y-axis, purple)
   - Cumulative permeation in atoms/m² (right y-axis, green dashed)
 
-![Inventory + permeation plot](FW_example/plots/sim_1/sim_1_flux_0_w_wetted_inventory_permeation.png)
+<img width="1781" height="1331" alt="sim_1_flux_0_w_wetted_inventory_permeation" src="https://github.com/user-attachments/assets/7ea63a25-dda7-4931-bbc5-86c3e19f66ac" />
 
 ---
 
@@ -116,7 +116,8 @@ The figure title shows the bin label and the physical time corresponding to
 > which is derived automatically from `RESULTS_FOLDER` by replacing the
 > `results_` prefix with `profiles_`.
 
-![Profile plot](FW_example/plots/sim_1/sim_1_flux_0_w_wetted_profiles_t244.png)
+<img width="1483" height="882" alt="sim_1_flux_0_w_wetted_profiles_t244" src="https://github.com/user-attachments/assets/1dde155d-34dd-4cbf-a10f-07740d6ea002" />
+
 
 ---
 
