@@ -46,6 +46,7 @@ tutorials/first_wall/
 | 6 | [06_temperature_models.md](06_temperature_models.md) | Custom temperature model |
 | 7 | [07_running.md](07_running.md) | Running and monitoring |
 | 8 | [08_sensitivity_scan.md](08_sensitivity_scan.md) | Parameter scan |
+| 9 | [09_plotting_results.md](09_plotting_results.md) | Plotting results |
 
 ## Quick start (if you already understand the code)
 

@@ -126,4 +126,4 @@ Each row gets a unique `Sim. ID` → separate output JSON → easy comparison.
 
 ---
 
-**Top:** [README](README.md) | **Wiki:** [wiki/Home.md](../../wiki/Home.md)
+**Previous:** [07 — Running](07_running.md) | **Next:** [09 — Plotting Results](09_plotting_results.md) | **Top:** [README](README.md) | **Wiki:** [wiki/Home.md](../../wiki/Home.md)
