@@ -13,7 +13,8 @@ class Pulse:
     steady_state: float
     ramp_down: float
     waiting: float
-    timing: List[float]
+    timing_flux: List[float]
+    timing_heat: List[float]
     fraction: List[float]
     fraction_flux: List[float]
     fraction_heat: List[float]
@@ -101,7 +102,7 @@ class Pulse:
                 sys.exit('exiting ...')
             else:
                 self.fraction_heat = fraction_heat
-            flux_ramp_up = self.timing_flux[np.argmax(self.fraction_flux)] - self.timing_flux[0] #argmax gives first index where max value occurs, which is the end of ramp up
+            flux_ramp_up = self.timing_flux[np.argmax(self.fraction_flux)] - self.timing_flux[0]
             heat_ramp_up = self.timing_heat[np.argmax(self.fraction_heat)] - self.timing_heat[0]
             self.ramp_up = max(flux_ramp_up, heat_ramp_up)
             self.waiting = waiting
