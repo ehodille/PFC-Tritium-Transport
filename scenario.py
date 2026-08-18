@@ -15,10 +15,10 @@ class Pulse:
     waiting: float
     timing_flux: List[float]
     timing_heat: List[float]
-    fraction: List[float]
     fraction_flux: List[float]
     fraction_heat: List[float]
-    steady_STATE: List[float]
+    steady_state_flux: List[float]
+    steady_state_heat: List[float]
     tritium_fraction: float
     heat_scaling: float
     flux_scaling: float
@@ -33,8 +33,10 @@ class Pulse:
         waiting: float = 0,
         tritium_fraction: float = 0.5,  # tritium fraction = T/D
         transition: List[float] = [],
-        steady_STATE: List[float] = [],
-        fraction: List[float] = [],
+        transition_flux: List[float] = [],
+        transition_heat: List[float] = [],
+        steady_state_flux: List[float] = [],
+        steady_state_heat: List[float] = [],
         fraction_flux: List[float] = [],
         fraction_heat: List[float] = [],
         timing_flux: List[float] = [],
@@ -54,28 +56,51 @@ class Pulse:
             self.steady_state = steady_state
             self.ramp_down = ramp_down
             self.waiting = waiting
-            self.transition = []
-            self.timing_flux = []
-            self.timing_heat = []
-            self.fraction = []
-            self.fraction_flux = []
-            self.fraction_heat = []
-            self.steady_STATE = []
         elif self.pulse_def == 'steps':
-            self.steady_STATE = steady_STATE
-            if len(transition) == len(steady_STATE)+1:
-                self.transition = transition
-                self.ramp_up = transition[0]             # first value of transition
-                self.ramp_down = transition[-1]          # last value of transition
-                self.steady_state = sum(steady_STATE)+sum(transition[1:-1])
+            self.steady_state_flux = steady_state_flux
+            if len(transition_flux) == len(steady_state_flux)+1:
+                self.transition_flux = transition_flux
+                flux_ramp_up = transition_flux[0]
+                flux_ramp_down = transition_flux[-1]
+                flux_steady_state = sum(steady_state_flux) + sum(transition_flux[1:-1])
+                flux_total_duration = sum(steady_state_flux) + sum(transition_flux)
             else:
-                print('ERROR: len(transition) != len(steady_STATE)+1')
+                print('ERROR: len(transition_flux) != len(steady_state_flux)+1')
                 sys.exit('exiting ...')
-            if len(fraction) == len(steady_STATE):
-                self.fraction = fraction
+            if len(fraction_flux) == len(steady_state_flux):
+                self.fraction_flux = fraction_flux
             else:
-                print('ERROR: len(fraction) != len(steady_STATE)')
+                print('ERROR: len(fraction_flux) != len(steady_state_flux)')
                 sys.exit('exiting ...')
+
+            self.steady_state_heat = steady_state_heat
+            if len(transition_heat) == len(steady_state_heat) + 1:
+                self.transition_heat = transition_heat
+                heat_ramp_up = transition_heat[0]
+                heat_ramp_down = transition_heat[-1]
+                heat_steady_state = sum(steady_state_heat) + sum(transition_heat[1:-1])
+                heat_total_duration = sum(steady_state_heat) + sum(transition_heat)
+            else:
+                print('ERROR: len(transition_heat) != len(steady_state_heat)+1')
+                sys.exit('exiting ...')
+            if len(fraction_heat) == len(steady_state_heat):
+                self.fraction_heat = fraction_heat
+            else:
+                print('ERROR: len(fraction_heat) != len(steady_state_heat)')
+                sys.exit('exiting ...')
+
+            if flux_total_duration > heat_total_duration:
+                self.ramp_up = flux_ramp_up
+                self.ramp_down = flux_ramp_down
+                self.steady_state = flux_steady_state
+            elif flux_total_duration < heat_total_duration:
+                self.ramp_up = heat_ramp_up
+                self.ramp_down = heat_ramp_down
+                self.steady_state = heat_steady_state
+            elif flux_total_duration == heat_total_duration:
+                self.ramp_up = max(flux_ramp_up,heat_ramp_up)
+                self.ramp_down = max(flux_ramp_up,heat_ramp_up)
+                self.steady_state = flux_total_duration - self.ramp_up - self.ramp_down
             self.waiting = waiting
         elif self.pulse_def == 'timing':
             timing_flux.sort()
@@ -108,7 +133,7 @@ class Pulse:
             self.waiting = waiting
             flux_ramp_down = self.timing_flux[np.where(np.array(self.fraction_flux) == np.max(self.fraction_flux))[0][-1]]
             heat_ramp_down = self.timing_heat[np.where(np.array(self.fraction_heat) == np.max(self.fraction_heat))[0][-1]]
-            self.ramp_down = max(self.timing_flux[-1], self.timing_heat[-1]) - max(flux_ramp_down, heat_ramp_down)
+            self.ramp_down =  max(self.timing_flux[-1], self.timing_heat[-1]) - max(flux_ramp_down, heat_ramp_down)
             self.steady_state = max(self.timing_flux[-1], self.timing_heat[-1]) - self.ramp_up - self.ramp_down
         self.tritium_fraction = tritium_fraction
         self.heat_scaling = heat_scaling
@@ -143,8 +168,10 @@ class Pulse:
             )
         elif self.pulse_def == 'steps':
             all_zeros = (
-                    sum(self.transition) == 0
-                    and sum(self.steady_STATE) == 0
+                    sum(self.transition_flux) == 0
+                    and sum(self.transition_heat) == 0
+                    and sum(self.steady_state_flux) == 0
+                    and sum(self.steady_state_heat) == 0
                     and self.waiting == 0
                     )
         elif self.pulse_def == 'timing':
@@ -161,13 +188,6 @@ class Pulse:
             self.steady_state = 250
             self.ramp_down = 10
             self.waiting = 1530
-            self.transition = []
-            self.timing_flux = []
-            self.timing_heat = []
-            self.fraction = []
-            self.fraction_flux = []
-            self.fraction_heat = []
-            self.steady_STATE = []
             tot = self.ramp_up + self.steady_state + self.ramp_down + self.waiting
         elif all_zeros:
             msg = "pulse has all zeros for ramp_up, steady_state, ramp_down, waiting. "
@@ -178,19 +198,12 @@ class Pulse:
             self.steady_state = 250
             self.ramp_down = 10
             self.waiting = 1530
-            self.transition = []
-            self.timing_flux = []
-            self.timing_heat = []
-            self.fraction = []
-            self.fraction_flux = []
-            self.fraction_heat = []
-            self.steady_STATE = []
             tot = self.ramp_up + self.steady_state + self.ramp_down + self.waiting
         else:
             if self.pulse_def == 'classic':
                 tot = self.ramp_up + self.steady_state + self.ramp_down + self.waiting
             elif self.pulse_def == 'steps':
-                tot = sum(self.transition) + sum(self.steady_STATE) + self.waiting
+                tot = max(sum(self.transition_heat)+sum(self.steady_state_heat),sum(self.transition_flux)+sum(self.steady_state_flux))+self.waiting
             elif self.pulse_def == 'timing':
                 tot = max(self.timing_flux[-1] - self.timing_flux[0], self.timing_heat[-1] - self.timing_heat[0]) + self.waiting
         return tot

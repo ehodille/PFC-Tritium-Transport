@@ -19,6 +19,8 @@ from typing import Dict, Union
 from bins_from_csv.csv_bin import Bin
 
 
+import sys
+
 class PlasmaDataHandling:
     _time_to_RISP_data: Dict[str, pd.DataFrame]
 
@@ -39,11 +41,11 @@ class PlasmaDataHandling:
                 raise TypeError(
                     f"Expected a pandas DataFrame in pulse_type_to_data, got {type(value)} instead"
                 )
-
+        
         self._time_to_RISP_data = {}
 
     def get_particle_flux(
-        self, pulse: Pulse, bin: Bin, t_rel: float, ion=True
+            self, pulse: Pulse, bin: Bin, t_rel: float, ion=True, mol=False
     ) -> float:
         """Returns the particle flux for a given pulse type
 
@@ -61,13 +63,20 @@ class PlasmaDataHandling:
         bin_index = bin.flux_id
         
         if ion:
+            if mol:
+                print('chose ion rather than mol')
+                print('for mol, set ion=False')
             flux_header = "Flux_Ion"
             # For ion flux: apply ion_scaling_factor from CSV bin
             flux_frac = bin.ion_scaling_factor
         else:
-            flux_header = "Flux_Atom"
-            # For atom flux: scale by atom_view_factor (default 1.0)
-            flux_frac = getattr(bin, 'atom_view_factor', 1.0)
+            if mol:
+                flux_header = "Flux_Mol"
+                flux_frac = getattr(bin, 'atom_vvieww_factor', 1.0)
+            else:
+                flux_header = "Flux_Atom"
+                # For atom flux: scale by atom_view_factor (default 1.0)
+                flux_frac = getattr(bin, 'atom_view_factor', 1.0)
 
         if pulse.pulse_type == "FP":
             flux = self.pulse_type_to_data[pulse.pulse_type][flux_header][bin_index]
@@ -294,6 +303,7 @@ class PlasmaDataHandling:
         total_time_on = pulse.duration_no_waiting
         total_time_pulse = pulse.total_duration
         
+
         return periodic_pulse_function(
             t_rel,
             pulse=pulse,

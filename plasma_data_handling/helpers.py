@@ -34,19 +34,34 @@ def periodic_pulse_function(current_time: float, pulse: Pulse, quant: str, value
     elif pulse.pulse_def == 'steps':
         time_prev = 0
         value_prev = value_off
-        for r in range(len(pulse.steady_STATE)):
-            if time_prev <= current_time < time_prev + pulse.transition[r]:
-                return (value * pulse.fraction[r] - value_prev) / pulse.transition[r] * (current_time - time_prev) + value_prev
-            elif time_prev + pulse.transition[r] <= current_time < time_prev + pulse.transition[r] + pulse.steady_STATE[r]:
-                return value * pulse.fraction[r]
-            value_prev = value * pulse.fraction[r]
-            time_prev += pulse.transition[r] + pulse.steady_STATE[r]
-        if time_prev <= current_time <= time_prev + pulse.transition[-1]:
-            return (value_off - value_prev) / pulse.transition[-1] * (current_time - time_prev) + value_prev
-        if current_time >= pulse.duration_no_waiting:
-            return value_off
-        if current_time == pulse.total_duration:
-            return value_off
+        if quant == 'flux':
+            for r in range(len(pulse.steady_state_flux)):
+                if time_prev <= current_time < time_prev + pulse.transition_flux[r]:
+                    return (value * pulse.fraction_flux[r] - value_prev) / pulse.transition_flux[r] * (current_time - time_prev) + value_prev
+                elif time_prev + pulse.transition_flux[r] <= current_time < time_prev + pulse.transition_flux[r] + pulse.steady_state_flux[r]:
+                    return value * pulse.fraction_flux[r]
+                value_prev = value * pulse.fraction_flux[r]
+                time_prev += pulse.transition_flux[r] + pulse.steady_state_flux[r]
+            if time_prev <= current_time <= time_prev + pulse.transition_flux[-1]:
+                return (value_off - value_prev) / pulse.transition_flux[-1] * (current_time - time_prev) + value_prev
+            if current_time >= pulse.duration_no_waiting:
+                return value_off
+            if current_time == pulse.total_duration:
+                return value_off
+        elif quant == 'heat':
+            for r in range(len(pulse.steady_state_heat)):
+                if time_prev <= current_time < time_prev + pulse.transition_heat[r]:
+                    return (value * pulse.fraction_heat[r] - value_prev) / pulse.transition_heat[r] * (current_time - time_prev) + value_prev
+                elif time_prev + pulse.transition_heat[r] <= current_time < time_prev + pulse.transition_heat[r] + pulse.steady_state_heat[r]:
+                    return value * pulse.fraction_heat[r]
+                value_prev = value * pulse.fraction_heat[r]
+                time_prev += pulse.transition_heat[r] + pulse.steady_state_heat[r]
+            if time_prev <= current_time <= time_prev + pulse.transition_heat[-1]:
+                return (value_off - value_prev) / pulse.transition_heat[-1] * (current_time - time_prev) + value_prev
+            if current_time >= pulse.duration_no_waiting:
+                return value_off
+            if current_time == pulse.total_duration:
+                return value_off
     elif pulse.pulse_def == 'timing':
         if quant == 'flux':
             if current_time == pulse.timing_flux[0]:
